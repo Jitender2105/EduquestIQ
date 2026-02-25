@@ -1,0 +1,21 @@
+# EduquestIQ - basic Apache configuration for Hostinger
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Protect sensitive files
+    RewriteRule ^(config\.php|schema\.sql|upgrade\.sql|includes_.*|composer\.json|DEPLOYMENT\.md)$ - [F,L]
+    RewriteRule ^uploads/.*\.php$ - [F,L]
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Frame-Options SAMEORIGIN
+    Header always set X-Content-Type-Options nosniff
+    Header always set Referrer-Policy strict-origin-when-cross-origin
+</IfModule>
