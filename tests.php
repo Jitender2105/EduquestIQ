@@ -44,7 +44,7 @@ if ($authUser && $authUser['role'] === 'student') {
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title"><?php echo htmlspecialchars($test['title']); ?></h5>
                         <p class="card-text small text-muted flex-grow-1">
-                            <?php echo htmlspecialchars(mb_strimwidth((string)$test['description'], 0, 140, '...')); ?>
+                            <?php echo htmlspecialchars(text_preview((string)$test['description'], 140, '...')); ?>
                         </p>
                         <p class="small mb-2">
                             <?php if ($test['teacher_name']): ?>

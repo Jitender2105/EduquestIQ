@@ -7,6 +7,7 @@ declare(strict_types=1);
 if (session_status() === PHP_SESSION_NONE) {
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
 
+    
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
@@ -82,4 +83,25 @@ function url_for(string $path = ''): string
     $base = rtrim(BASE_URL, '/');
     $path = '/' . ltrim($path, '/');
     return $base . $path;
+}
+
+/**
+ * Safe string preview helper that works with and without mbstring.
+ */
+function text_preview(string $text, int $width = 140, string $trimMarker = '...'): string
+{
+    if ($width <= 0) {
+        return '';
+    }
+
+    if (function_exists('mb_strimwidth')) {
+        return (string)mb_strimwidth($text, 0, $width, $trimMarker, 'UTF-8');
+    }
+
+    if (strlen($text) <= $width) {
+        return $text;
+    }
+
+    $trimWidth = max(0, $width - strlen($trimMarker));
+    return substr($text, 0, $trimWidth) . $trimMarker;
 }

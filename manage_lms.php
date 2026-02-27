@@ -879,7 +879,7 @@ require_once __DIR__ . '/includes_header.php';
                                 <option value="">Question</option>
                                 <?php foreach (array_slice($questions, 0, 100) as $question): ?>
                                     <option value="<?php echo (int)$question['id']; ?>">
-                                        #<?php echo (int)$question['id']; ?> <?php echo htmlspecialchars(mb_strimwidth((string)$question['question_text'], 0, 55, '...')); ?>
+                                        #<?php echo (int)$question['id']; ?> <?php echo htmlspecialchars(text_preview((string)$question['question_text'], 55, '...')); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -923,8 +923,8 @@ require_once __DIR__ . '/includes_header.php';
                 </div>
 
                 <div class="row g-3 mt-1">
-                    <div class="col-md-4"><div class="card p-3"><h6>Recent Questions</h6><ul class="small mb-2"><?php foreach (array_slice($questions, 0, 10) as $question): ?><li>#<?php echo (int)$question['id']; ?> [<?php echo htmlspecialchars($question['question_type']); ?>] <?php echo htmlspecialchars(mb_strimwidth((string)$question['question_text'], 0, 55, '...')); ?></li><?php endforeach; ?></ul><form method="post" class="input-group input-group-sm"><?php echo csrf_field(); ?><input type="hidden" name="action" value="delete_question"><input class="form-control" type="number" min="1" name="question_id" placeholder="Question ID to delete"><button class="btn btn-outline-danger">Delete</button></form></div></div>
-                    <div class="col-md-4"><div class="card p-3"><h6>Recent Options</h6><ul class="small mb-0"><?php foreach (array_slice($questionOptions, 0, 20) as $option): ?><li>Q#<?php echo (int)$option['question_id']; ?> <?php echo (int)$option['is_correct'] ? '[Correct] ' : ''; ?><?php echo htmlspecialchars(mb_strimwidth((string)$option['option_text'], 0, 50, '...')); ?></li><?php endforeach; ?></ul></div></div>
+                    <div class="col-md-4"><div class="card p-3"><h6>Recent Questions</h6><ul class="small mb-2"><?php foreach (array_slice($questions, 0, 10) as $question): ?><li>#<?php echo (int)$question['id']; ?> [<?php echo htmlspecialchars($question['question_type']); ?>] <?php echo htmlspecialchars(text_preview((string)$question['question_text'], 55, '...')); ?></li><?php endforeach; ?></ul><form method="post" class="input-group input-group-sm"><?php echo csrf_field(); ?><input type="hidden" name="action" value="delete_question"><input class="form-control" type="number" min="1" name="question_id" placeholder="Question ID to delete"><button class="btn btn-outline-danger">Delete</button></form></div></div>
+                    <div class="col-md-4"><div class="card p-3"><h6>Recent Options</h6><ul class="small mb-0"><?php foreach (array_slice($questionOptions, 0, 20) as $option): ?><li>Q#<?php echo (int)$option['question_id']; ?> <?php echo (int)$option['is_correct'] ? '[Correct] ' : ''; ?><?php echo htmlspecialchars(text_preview((string)$option['option_text'], 50, '...')); ?></li><?php endforeach; ?></ul></div></div>
                     <div class="col-md-4"><div class="card p-3"><h6>Recent Mappings</h6><ul class="small mb-0"><?php foreach (array_slice($questionMappings, 0, 20) as $map): ?><li>Q#<?php echo (int)$map['question_id']; ?> -> <?php echo htmlspecialchars($map['attribute_name'] . '/' . $map['sub_attribute_name']); ?> (<?php echo htmlspecialchars((string)$map['weight']); ?>)</li><?php endforeach; ?></ul></div></div>
                 </div>
             </div>
@@ -969,7 +969,7 @@ require_once __DIR__ . '/includes_header.php';
                                 <option value="">Question</option>
                                 <?php foreach (array_slice($questions, 0, 100) as $question): ?>
                                     <option value="<?php echo (int)$question['id']; ?>">
-                                        #<?php echo (int)$question['id']; ?> <?php echo htmlspecialchars(mb_strimwidth((string)$question['question_text'], 0, 55, '...')); ?>
+                                        #<?php echo (int)$question['id']; ?> <?php echo htmlspecialchars(text_preview((string)$question['question_text'], 55, '...')); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
