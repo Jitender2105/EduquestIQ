@@ -1,0 +1,50 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse HOSTINGER secret
+        id: hostinger
+        shell: bash
+        run: |
+          # Expected HOSTINGER format:
+          # host|username|password|port
+          IFS='|' read -r FTP_HOST FTP_USER FTP_PASS FTP_PORT <<< "${{ secrets.HOSTINGER }}"
+
+          if [[ -z "$FTP_HOST" || -z "$FTP_USER" || -z "$FTP_PASS" || -z "$FTP_PORT" ]]; then
+            echo "HOSTINGER secret is missing or invalid."
+            echo "Expected: host|username|password|port"
+            exit 1
+          fi
+
+          echo "server=$FTP_HOST" >> "$GITHUB_OUTPUT"
+          echo "username=$FTP_USER" >> "$GITHUB_OUTPUT"
+          echo "password=$FTP_PASS" >> "$GITHUB_OUTPUT"
+          echo "port=$FTP_PORT" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ steps.hostinger.outputs.server }}
+          username: ${{ steps.hostinger.outputs.username }}
+          password: ${{ steps.hostinger.outputs.password }}
+          port: ${{ steps.hostinger.outputs.port }}
+          protocol: ftp
+          server-dir: /domains/eduquestiq.com/public_html/
+          exclude: |
+            **/.git*
+            **/.github/**
+            **/.DS_Store
+            config.local.php
+            uploads/**
+
