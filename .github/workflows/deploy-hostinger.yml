@@ -16,16 +16,24 @@ jobs:
       - name: Parse HOSTINGER secret
         id: hostinger
         shell: bash
+        env:
+          HOSTINGER_SECRET: ${{ secrets.HOSTINGER }}
         run: |
-          # Expected HOSTINGER format:
+          # Supported HOSTINGER formats:
           # host|username|password|port
-          IFS='|' read -r FTP_HOST FTP_USER FTP_PASS FTP_PORT <<< "${{ secrets.HOSTINGER }}"
+          # host|username|password   (port defaults to 21)
+          SECRET="$(echo "$HOSTINGER_SECRET" | tr -d '\r' | xargs)"
+          IFS='|' read -r FTP_HOST FTP_USER FTP_PASS FTP_PORT <<< "$SECRET"
 
-          if [[ -z "$FTP_HOST" || -z "$FTP_USER" || -z "$FTP_PASS" || -z "$FTP_PORT" ]]; then
+          if [[ -z "$FTP_HOST" || -z "$FTP_USER" || -z "$FTP_PASS" ]]; then
             echo "HOSTINGER secret is missing or invalid."
-            echo "Expected: host|username|password|port"
+            echo "Expected: host|username|password|port (or without port)."
             exit 1
           fi
+
+          FTP_HOST="${FTP_HOST#ftp://}"
+          FTP_HOST="${FTP_HOST#ftps://}"
+          FTP_PORT="${FTP_PORT:-21}"
 
           echo "server=$FTP_HOST" >> "$GITHUB_OUTPUT"
           echo "username=$FTP_USER" >> "$GITHUB_OUTPUT"
@@ -47,4 +55,3 @@ jobs:
             **/.DS_Store
             config.local.php
             uploads/**
-
