@@ -910,6 +910,89 @@ $authUser = current_user();
             gap: 10px;
             flex-wrap: wrap;
         }
+        .eq-fallback {
+            margin-top: 8px;
+        }
+        .eq-fallback-hero {
+            border-radius: 16px;
+            padding: 20px;
+            color: #fff;
+            background: radial-gradient(circle at 20% 10%, rgba(255,255,255,0.14), transparent 38%),
+                        linear-gradient(135deg, #346dfd 0%, #6f40ff 48%, #bd2ee5 100%);
+            border: 1px solid rgba(255,255,255,0.16);
+            box-shadow: 0 18px 34px rgba(56, 42, 150, 0.2);
+        }
+        .eq-fallback-eyebrow {
+            display: inline-block;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            padding: 5px 10px;
+            font-size: 0.74rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .eq-fallback-hero h3 {
+            margin: 0 0 8px;
+            color: #fff;
+            font-size: clamp(1.3rem, 2.5vw, 1.85rem);
+        }
+        .eq-fallback-hero p {
+            margin: 0;
+            max-width: 760px;
+            color: rgba(255,255,255,0.84);
+        }
+        .eq-fallback-points {
+            margin-top: 12px;
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .eq-fallback-points div {
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.08);
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            color: rgba(255,255,255,0.87);
+        }
+        .eq-fallback-actions {
+            margin-top: 14px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .eq-fallback-grid {
+            margin-top: 12px;
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .eq-fallback-card {
+            border-radius: 14px;
+            border: 1px solid rgba(62, 81, 154, 0.12);
+            background: #fff;
+            padding: 14px;
+        }
+        .eq-fallback-card h6 {
+            margin: 0 0 4px;
+            font-size: 1rem;
+        }
+        .eq-fallback-meta {
+            color: #6d7598;
+            font-size: 0.77rem;
+            margin-bottom: 7px;
+        }
+        .eq-fallback-card p {
+            margin: 0 0 7px;
+            color: #616a8f;
+            font-size: 0.86rem;
+        }
+        .eq-fallback-card a {
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.82rem;
+        }
 
         @media (max-width: 991px) {
             .hero {
@@ -941,6 +1024,9 @@ $authUser = current_user();
             .eq-gradient-checks {
                 grid-template-columns: 1fr;
             }
+            .eq-fallback-grid {
+                grid-template-columns: 1fr 1fr;
+            }
         }
 
         @media (max-width: 480px) {
@@ -958,6 +1044,10 @@ $authUser = current_user();
             .eq-stat-grid,
             .eq-recognition-grid,
             .eq-footer-feature-row {
+                grid-template-columns: 1fr;
+            }
+            .eq-fallback-points,
+            .eq-fallback-grid {
                 grid-template-columns: 1fr;
             }
         }

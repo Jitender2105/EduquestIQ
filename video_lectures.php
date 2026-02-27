@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
+require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
 
@@ -20,9 +21,27 @@ $videos = $stmt->fetchAll();
 </div>
 
 <?php if (!$videos): ?>
-    <div class="alert alert-info">
-        No video lectures have been added yet. Insert rows into <code>video_lectures</code>.
-    </div>
+    <?php
+    render_static_fallback([
+        'eyebrow' => 'Video Academy',
+        'title' => 'Video lectures are not published yet',
+        'description' => 'Once videos are added to courses, this catalog will show all lecture titles, durations, and watch links.',
+        'points' => [
+            'Videos can be organized by sequence order per course.',
+            'Students can track completion percentage from each lecture.',
+            'Course-level analytics can use watch progress for insights.',
+        ],
+        'cards' => [
+            ['title' => 'Algebra Fundamentals', 'meta' => '18 min · Academic', 'text' => 'Step-by-step concept teaching with examples and checkpoints.'],
+            ['title' => 'Creative Writing Basics', 'meta' => '12 min · Creative', 'text' => 'Narrative structure, style, and practical writing prompts.'],
+            ['title' => 'Intro to Python Logic', 'meta' => '22 min · Technical', 'text' => 'Beginner-friendly programming concepts and coding mindset.'],
+        ],
+        'primary_label' => 'Browse Courses',
+        'primary_link' => url_for('courses.php'),
+        'secondary_label' => 'Upload Videos',
+        'secondary_link' => url_for('manage_lms.php'),
+    ]);
+    ?>
 <?php else: ?>
     <ul class="list-group">
         <?php foreach ($videos as $v): ?>

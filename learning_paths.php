@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
+require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
 
@@ -43,10 +44,27 @@ if ($paths) {
 </div>
 
 <?php if (!$paths): ?>
-    <div class="alert alert-info">
-        No learning paths have been defined yet. Insert rows into <code>learning_paths</code> and
-        <code>path_courses</code> to configure guided journeys.
-    </div>
+    <?php
+    render_static_fallback([
+        'eyebrow' => 'Guided Journeys',
+        'title' => 'Learning paths are not configured yet',
+        'description' => 'Once paths and sequence mapping are added, students will be able to follow structured journeys or learn self-paced.',
+        'points' => [
+            'Each path can contain multiple courses in a defined sequence.',
+            'Students can pause and resume from their last progress point.',
+            'Paths support both school-led and flexible self-paced journeys.',
+        ],
+        'cards' => [
+            ['title' => 'Future Scholars Path', 'meta' => 'Academic Track', 'text' => 'Foundational academic sequence across core subjects.'],
+            ['title' => 'Young Innovators Path', 'meta' => 'Creative + Technical', 'text' => 'Balanced route for design thinking and coding fundamentals.'],
+            ['title' => 'Leadership Builder Path', 'meta' => 'Communication + Teamwork', 'text' => 'Builds confidence, collaboration, and decision-making skills.'],
+        ],
+        'primary_label' => 'Explore Courses',
+        'primary_link' => url_for('courses.php'),
+        'secondary_label' => 'Configure Paths',
+        'secondary_link' => url_for('manage_lms.php'),
+    ]);
+    ?>
 <?php else: ?>
     <div class="row g-3">
         <?php foreach ($paths as $path): ?>

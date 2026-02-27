@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_csrf.php';
+require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
 
@@ -42,9 +43,27 @@ if ($authUser && $authUser['role'] === 'student') {
 </div>
 
 <?php if (!$courses): ?>
-    <div class="alert alert-info">
-        No courses have been created yet. Create rows in the <code>courses</code> table to see them here.
-    </div>
+    <?php
+    render_static_fallback([
+        'eyebrow' => 'Courses Library',
+        'title' => 'Course catalog is being prepared',
+        'description' => 'Your live course list will appear here once teachers or admins publish course records.',
+        'points' => [
+            'Course cards will show title, teacher, attribute, and enrollment actions.',
+            'Students can enroll directly and continue from dashboard progress.',
+            'Each course can include videos, study materials, and mapped assessments.',
+        ],
+        'cards' => [
+            ['title' => 'Academic Foundations', 'meta' => 'Mathematics · Science', 'text' => 'Core subject progression path for structured learning outcomes.', 'link' => url_for('manage_lms.php')],
+            ['title' => 'Creative Innovation Lab', 'meta' => 'Design · Storytelling', 'text' => 'Project-based learning path for artistic and problem-solving growth.', 'link' => url_for('manage_lms.php')],
+            ['title' => 'Technical Starter Track', 'meta' => 'Coding · Robotics', 'text' => 'Hands-on practical sequence for technical skill acceleration.', 'link' => url_for('manage_lms.php')],
+        ],
+        'primary_label' => 'Open Dashboard',
+        'primary_link' => url_for('dashboard.php'),
+        'secondary_label' => 'Manage LMS Content',
+        'secondary_link' => url_for('manage_lms.php'),
+    ]);
+    ?>
 <?php else: ?>
     <div class="row g-3">
         <?php foreach ($courses as $course): ?>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes_auth.php';
 require_once __DIR__ . '/includes_csrf.php';
 require_once __DIR__ . '/includes_achievements.php';
+require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
 $authUser = current_user();
@@ -112,7 +113,7 @@ if ($posts) {
         </div>
 
         <?php if ($authUser): ?>
-            <form method="post" class="card mb-3 p-3">
+            <form method="post" class="card mb-3 p-3" id="community-post-form">
                 <?php echo csrf_field(); ?>
                 <input type="hidden" name="action" value="post">
                 <div class="mb-2">
@@ -127,7 +128,27 @@ if ($posts) {
         <?php endif; ?>
 
         <?php if (!$posts): ?>
-            <p class="text-muted">No posts yet. Be the first to start a conversation!</p>
+            <?php
+            render_static_fallback([
+                'eyebrow' => 'Community Feed',
+                'title' => 'No community posts yet',
+                'description' => 'Your community timeline is empty right now. Once users post questions and updates, the live feed appears here.',
+                'points' => [
+                    'Students can post doubts, wins, and collaboration requests.',
+                    'Comments and likes can contribute to achievement unlocks.',
+                    'Teachers and parents can provide guided feedback directly.',
+                ],
+                'cards' => [
+                    ['title' => 'Ask a Doubt', 'meta' => 'Peer Learning', 'text' => 'Post a question and get responses from classmates and mentors.'],
+                    ['title' => 'Share Progress', 'meta' => 'Motivation', 'text' => 'Celebrate completed tests, badges, and milestones with the community.'],
+                    ['title' => 'Team Discussions', 'meta' => 'Collaboration', 'text' => 'Run group discussions on projects, assignments, and ideas.'],
+                ],
+                'primary_label' => $authUser ? 'Create First Post' : 'Login to Post',
+                'primary_link' => $authUser ? '#community-post-form' : url_for('login.php'),
+                'secondary_label' => 'Visit Dashboard',
+                'secondary_link' => url_for('dashboard.php'),
+            ]);
+            ?>
         <?php else: ?>
             <?php foreach ($posts as $post): ?>
                 <div class="card mb-3">

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
+require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
 
@@ -25,9 +26,27 @@ $articles = $stmt->fetchAll();
 </p>
 
 <?php if (!$articles): ?>
-    <div class="alert alert-info">
-        No articles found. Add rows into <code>study_materials</code> with <code>material_type = 'link'</code>.
-    </div>
+    <?php
+    render_static_fallback([
+        'eyebrow' => 'Knowledge Hub',
+        'title' => 'Articles will appear here soon',
+        'description' => 'This section lists curated learning articles stored as study materials with type link.',
+        'points' => [
+            'Articles can be tagged per course for focused reading.',
+            'Perfect for concept summaries, exam tips, and revision notes.',
+            'Each item opens directly to external or internal reading links.',
+        ],
+        'cards' => [
+            ['title' => 'How to Build a Weekly Study Plan', 'meta' => 'Productivity', 'text' => 'A practical framework for consistency and reduced study stress.'],
+            ['title' => 'Creative Problem Solving for Students', 'meta' => 'Creative Domain', 'text' => 'Structured methods to improve ideation and execution.'],
+            ['title' => 'Parent Guide to Progress Dashboards', 'meta' => 'Parent Insights', 'text' => 'How to interpret skill trends and support learning at home.'],
+        ],
+        'primary_label' => 'Go to Resources',
+        'primary_link' => url_for('materials.php'),
+        'secondary_label' => 'Add Article Links',
+        'secondary_link' => url_for('manage_lms.php'),
+    ]);
+    ?>
 <?php else: ?>
     <ul class="list-group">
         <?php foreach ($articles as $a): ?>

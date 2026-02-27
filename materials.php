@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
+require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
 
@@ -22,9 +23,27 @@ $materials = $stmt->fetchAll();
 </div>
 
 <?php if (!$materials): ?>
-    <div class="alert alert-info">
-        No study materials found. Add rows into <code>study_materials</code> with type pdf/doc/ppt.
-    </div>
+    <?php
+    render_static_fallback([
+        'eyebrow' => 'Study Library',
+        'title' => 'No study materials available yet',
+        'description' => 'Add PDFs, DOCs, and PPTs to build a structured resource center for each course.',
+        'points' => [
+            'Resources support revision, assignments, and exam preparation.',
+            'Material uploads are linked to courses for easier navigation.',
+            'Students can access learning files from any device anytime.',
+        ],
+        'cards' => [
+            ['title' => 'Math Formula Handbook', 'meta' => 'PDF', 'text' => 'Quick-reference formulas for core algebra and geometry concepts.'],
+            ['title' => 'Science Lab Activity Sheet', 'meta' => 'DOC', 'text' => 'Experiment templates with observation and analysis sections.'],
+            ['title' => 'Coding Basics Presentation', 'meta' => 'PPT', 'text' => 'Visual walkthrough of programming fundamentals and examples.'],
+        ],
+        'primary_label' => 'Open Dashboard',
+        'primary_link' => url_for('dashboard.php'),
+        'secondary_label' => 'Upload Materials',
+        'secondary_link' => url_for('manage_lms.php'),
+    ]);
+    ?>
 <?php else: ?>
     <ul class="list-group">
         <?php foreach ($materials as $m): ?>

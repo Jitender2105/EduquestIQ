@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
+require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
 
@@ -32,10 +33,27 @@ if ($authUser && $authUser['role'] === 'student') {
 </div>
 
 <?php if (!$tests): ?>
-    <div class="alert alert-info">
-        No tests have been created yet. Add rows into the <code>tests</code>, <code>questions</code>,
-        and related tables to make them available here.
-    </div>
+    <?php
+    render_static_fallback([
+        'eyebrow' => 'Assessment Center',
+        'title' => 'No tests published yet',
+        'description' => 'This section will display active MCQ and subjective tests as soon as your assessment bank is added.',
+        'points' => [
+            'Questions can map to multiple attributes and sub-attributes.',
+            'Weighted scoring updates skill progress automatically.',
+            'Students can attempt tests and view attempt status in real time.',
+        ],
+        'cards' => [
+            ['title' => 'Math Mastery Check', 'meta' => '40 marks · 30 min', 'text' => 'Tracks mathematics sub-skills with weighted performance mapping.'],
+            ['title' => 'Creative Thinking Sprint', 'meta' => '25 marks · 20 min', 'text' => 'Blends MCQ + subjective responses for innovation profiling.'],
+            ['title' => 'Leadership Readiness', 'meta' => '30 marks · 25 min', 'text' => 'Measures communication, teamwork, and initiative indicators.'],
+        ],
+        'primary_label' => 'Go to Dashboard',
+        'primary_link' => url_for('dashboard.php'),
+        'secondary_label' => 'Add Tests in Backend',
+        'secondary_link' => url_for('manage_lms.php'),
+    ]);
+    ?>
 <?php else: ?>
     <div class="row g-3">
         <?php foreach ($tests as $test): ?>
