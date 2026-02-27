@@ -63,7 +63,7 @@
 <footer class="border-top py-3 mt-4 bg-white">
     <div class="container d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-2">
-            <img src="<?php echo htmlspecialchars(url_for('assets/img/eduquestiq-logo-icon.png')); ?>" alt="EduquestIQ" style="width:28px;height:28px;border-radius:8px;object-fit:cover;">
+            <img src="<?php echo htmlspecialchars(url_for('assets/img/eduquestiq-logo-wide.png')); ?>" alt="EduquestIQ" style="width:102px;height:28px;object-fit:contain;">
             <div class="text-muted small">&copy; <?php echo date('Y'); ?> EduquestIQ · Skills-first learning platform</div>
         </div>
         <div>

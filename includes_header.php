@@ -7,13 +7,42 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes_auth.php';
 
 $authUser = current_user();
+$currentPage = basename((string)($_SERVER['SCRIPT_NAME'] ?? 'index.php'));
+$pageMeta = [
+    'index.php' => ['EduquestIQ | Skills-First Learning Platform', 'Master academics, creativity, leadership, and technical skills with dynamic courses, tests, and progress dashboards.'],
+    'about.php' => ['About EduquestIQ | What We Do', 'Learn how EduquestIQ helps students, parents, teachers, and schools drive measurable learning outcomes.'],
+    'courses.php' => ['Courses | EduquestIQ', 'Browse skill-mapped courses, enroll, and continue learning through videos, tests, and study resources.'],
+    'course.php' => ['Course Details | EduquestIQ', 'View course curriculum, lectures, materials, and progress in one place.'],
+    'tests.php' => ['Tests & Assessments | EduquestIQ', 'Attempt mapped assessments that update attribute and sub-attribute level skill scores.'],
+    'test_attempt.php' => ['Attempt Test | EduquestIQ', 'Complete MCQ and subjective assessments with live scoring and skill impact.'],
+    'learning_paths.php' => ['Learning Paths | EduquestIQ', 'Follow structured course journeys or learn self-paced with saved progress.'],
+    'community.php' => ['Community Learning | EduquestIQ', 'Collaborate with peers through posts, comments, and likes in the EduquestIQ community.'],
+    'articles.php' => ['Articles | EduquestIQ', 'Explore learning insights, study tips, and curated education resources.'],
+    'video_lectures.php' => ['Video Lectures | EduquestIQ', 'Access course-linked video lessons with sequence and duration tracking.'],
+    'materials.php' => ['Study Materials | EduquestIQ', 'Find PDFs, DOCs, PPTs, and links organized by course and skill domain.'],
+    'dashboard.php' => ['Dashboard | EduquestIQ', 'Track progress, skills, achievements, and performance through dynamic role-based dashboards.'],
+    'backend.php' => ['Backend Management | EduquestIQ', 'Manage LMS entities including questions, attributes, courses, and content modules.'],
+    'manage_lms.php' => ['LMS Admin Panel | EduquestIQ', 'Configure tests, questions, mappings, courses, and learning content from one panel.'],
+    'parent_children.php' => ['Parent Links | EduquestIQ', 'Connect child accounts and monitor learning trends, performance, and feedback.'],
+    'teacher_feedback.php' => ['Teacher Feedback | EduquestIQ', 'Review and manage feedback interactions between teachers, students, and parents.'],
+    'login.php' => ['Login | EduquestIQ', 'Sign in to access your EduquestIQ dashboard and learning modules.'],
+    'register.php' => ['Register | EduquestIQ', 'Create your EduquestIQ account as student, parent, teacher, or school admin.'],
+    'privacy.php' => ['Privacy Policy | EduquestIQ', 'Read how EduquestIQ handles, secures, and processes user data.'],
+    'terms.php' => ['Terms & Conditions | EduquestIQ', 'Review the terms governing use of the EduquestIQ platform.'],
+    'material_upload.php' => ['Upload Material | EduquestIQ', 'Upload validated study resources linked to courses and learners.'],
+];
+$metaTitle = $pageMeta[$currentPage][0] ?? 'EduquestIQ | Learning Platform';
+$metaDescription = $pageMeta[$currentPage][1] ?? 'EduquestIQ is a skills-first LMS for students, parents, teachers, and school administrators.';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>EduquestIQ</title>
+    <title><?php echo htmlspecialchars($metaTitle); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="<?php echo htmlspecialchars($metaDescription); ?>">
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(url_for('assets/img/favicon.png')); ?>">
+    <link rel="apple-touch-icon" href="<?php echo htmlspecialchars(url_for('assets/img/favicon.png')); ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -71,11 +100,11 @@ $authUser = current_user();
         }
         .eq-brand-mark {
             display: none;
-            width: 28px;
-            height: 28px;
-            object-fit: cover;
-            border-radius: 8px;
-            box-shadow: 0 6px 14px rgba(59, 73, 153, 0.18);
+            width: 112px;
+            height: 30px;
+            object-fit: contain;
+            border-radius: 0;
+            box-shadow: none;
         }
         .eq-brand-text {
             display: none;
