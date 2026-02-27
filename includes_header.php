@@ -421,6 +421,496 @@ $authUser = current_user();
             border-top: 1px solid var(--eq-line) !important;
         }
 
+        .eq-home-hero {
+            margin-top: 8px;
+            border-radius: 0;
+            background: radial-gradient(circle at 18% 20%, rgba(255,255,255,0.14), transparent 35%),
+                        radial-gradient(circle at 82% 6%, rgba(255,255,255,0.16), transparent 32%),
+                        linear-gradient(135deg, #356eff 0%, #6a40ff 48%, #bd2ee5 100%);
+            padding: 74px 4vw;
+            color: #fff;
+        }
+
+        .eq-home-hero-grid {
+            max-width: 1120px;
+            margin: 0 auto;
+            display: grid;
+            gap: 40px;
+            grid-template-columns: 1.05fr 1fr;
+            align-items: center;
+        }
+        .eq-home-hero h1 {
+            font-size: clamp(2rem, 4.2vw, 4rem);
+            line-height: 1.04;
+            margin: 16px 0 14px;
+            color: #fff;
+        }
+        .eq-home-hero h1 .accent { color: #ffcc3e; }
+        .eq-home-hero p {
+            margin: 0;
+            max-width: 560px;
+            color: rgba(255,255,255,0.84);
+            font-size: 1.02rem;
+            line-height: 1.6;
+        }
+        .eq-home-hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 22px;
+        }
+        .eq-home-hero-actions .btn {
+            min-width: 162px;
+            border-radius: 10px;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.26);
+        }
+        .eq-home-hero-actions .btn-light {
+            color: #2a3e96;
+            background: #fff;
+            border-color: #fff;
+        }
+        .eq-home-hero-actions .btn-outline-light {
+            background: rgba(255,255,255,0.08);
+        }
+        .eq-home-hero-metrics {
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            max-width: 460px;
+        }
+        .eq-home-hero-metrics div {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+        .eq-home-hero-metrics strong {
+            display: block;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2rem;
+            line-height: 1.1;
+        }
+        .eq-home-hero-metrics span {
+            display: block;
+            color: rgba(255,255,255,0.77);
+            font-size: 0.78rem;
+        }
+        .eq-hero-panel {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.17);
+            border-radius: 18px;
+            box-shadow: 0 24px 45px rgba(39, 18, 109, 0.2);
+            padding: 16px;
+        }
+        .eq-hero-panel-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            font-size: 0.83rem;
+            color: rgba(255,255,255,0.85);
+            font-weight: 600;
+        }
+        .eq-panel-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffcf3f;
+            color: #6b4d00;
+            font-size: 1rem;
+        }
+        .eq-hero-panel-ring {
+            margin: 8px auto 16px;
+            width: 92px;
+            height: 92px;
+            border-radius: 999px;
+            background:
+                radial-gradient(circle closest-side, rgba(93,61,255,0.48) 69%, transparent 70% 100%),
+                conic-gradient(#ffc83c 0 270deg, rgba(255,255,255,0.16) 270deg 360deg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            line-height: 1;
+        }
+        .eq-hero-panel-ring small {
+            margin-top: 4px;
+            font-size: 0.62rem;
+            color: rgba(255,255,255,0.8);
+        }
+        .eq-hero-panel-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .eq-hero-panel-grid div {
+            border-radius: 12px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px;
+            text-align: center;
+        }
+        .eq-hero-panel-grid small {
+            display: block;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.72);
+        }
+        .eq-hero-panel-grid strong {
+            font-size: 0.95rem;
+            color: #fff;
+        }
+        .eq-hero-panel-activity {
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px;
+        }
+        .eq-hero-panel-activity h6 {
+            color: rgba(255,255,255,0.84);
+            margin: 0 0 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .eq-hero-panel-activity p {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin: 0 0 5px;
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.75);
+        }
+        .eq-home-section {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 54px 14px;
+        }
+        .eq-skill-card {
+            height: 100%;
+            border-radius: 14px;
+            border: 1px solid rgba(79, 96, 168, 0.12);
+            padding: 16px;
+            background: #fff;
+        }
+        .eq-skill-card .eq-skill-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+        .eq-skill-card h5 {
+            font-size: 1.22rem;
+            margin-bottom: 8px;
+        }
+        .eq-skill-card p {
+            color: #70779a;
+            font-size: 0.88rem;
+            min-height: 64px;
+        }
+        .eq-skill-card ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .eq-skill-card li {
+            font-size: 0.8rem;
+            color: #5e678d;
+            margin-bottom: 5px;
+            position: relative;
+            padding-left: 14px;
+        }
+        .eq-skill-card li::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 999px;
+            position: absolute;
+            top: 6px;
+            left: 0;
+            background: #5a89ff;
+        }
+        .eq-skill-card.academic { background: #eef4ff; }
+        .eq-skill-card.academic .eq-skill-icon { background: #3f78ff; color: #fff; }
+        .eq-skill-card.creative { background: #f5ecff; }
+        .eq-skill-card.creative .eq-skill-icon { background: #a05eff; color: #fff; }
+        .eq-skill-card.leadership { background: #eaf8ec; }
+        .eq-skill-card.leadership .eq-skill-icon { background: #69ca83; color: #fff; }
+        .eq-skill-card.technical { background: #fff2e7; }
+        .eq-skill-card.technical .eq-skill-icon { background: #f1a673; color: #fff; }
+        .eq-home-platform .eq-platform-card {
+            border: 1px solid rgba(68, 86, 161, 0.11);
+            border-radius: 12px;
+            background: #fff;
+            padding: 14px;
+            height: 100%;
+        }
+        .eq-platform-card h6 {
+            font-size: 1rem;
+            margin-bottom: 7px;
+        }
+        .eq-platform-card p {
+            color: #7c84a4;
+            font-size: 0.83rem;
+            min-height: 50px;
+        }
+        .eq-platform-card a {
+            text-decoration: none;
+            color: #4267e8;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+        .eq-home-gradient-zone {
+            background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.12), transparent 35%),
+                        linear-gradient(135deg, #346dfd 0%, #6f40ff 48%, #bd2fe5 100%);
+        }
+        .eq-section-title.light h2,
+        .eq-section-title.light p {
+            color: #fff;
+        }
+        .eq-section-title.light p {
+            color: rgba(255,255,255,0.8);
+        }
+        .eq-stat-grid,
+        .eq-recognition-grid {
+            display: grid;
+            gap: 14px;
+        }
+        .eq-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .eq-recognition-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+        .eq-glass-card {
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.09);
+            color: #fff;
+            border-radius: 14px;
+            padding: 16px;
+            text-align: center;
+        }
+        .eq-glass-card strong {
+            display: block;
+            font-size: 2rem;
+            font-family: 'Outfit', sans-serif;
+            line-height: 1.05;
+        }
+        .eq-glass-card span {
+            display: block;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+        .eq-glass-card small {
+            display: block;
+            margin-top: 3px;
+            color: rgba(255,255,255,0.78);
+        }
+        .eq-gradient-cta {
+            margin: 28px auto 0;
+            max-width: 640px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.11);
+            padding: 20px;
+            text-align: center;
+            color: #fff;
+        }
+        .eq-gradient-cta h3 {
+            margin-bottom: 6px;
+            color: #fff;
+        }
+        .eq-gradient-cta p {
+            color: rgba(255,255,255,0.83);
+            margin-bottom: 14px;
+        }
+        .eq-gradient-cta .btn { margin: 2px; }
+        .eq-testimonial-card {
+            border: 1px solid rgba(67, 84, 149, 0.13);
+            background: #fff;
+            border-radius: 14px;
+            height: 100%;
+            padding: 16px;
+            box-shadow: 0 10px 20px rgba(26, 39, 88, 0.06);
+        }
+        .eq-stars {
+            letter-spacing: 2px;
+            color: #f4c34d;
+            margin-bottom: 8px;
+        }
+        .eq-testimonial-card p {
+            margin-bottom: 10px;
+            color: #5f6788;
+            font-size: 0.9rem;
+            min-height: 86px;
+        }
+        .eq-tag-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .eq-tag-row span {
+            font-size: 0.72rem;
+            border-radius: 999px;
+            background: #edf2ff;
+            color: #4d68aa;
+            padding: 4px 8px;
+        }
+        .eq-person-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .eq-avatar {
+            width: 33px;
+            height: 33px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #3f73ff, #6f41ff);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+        .eq-person-row strong {
+            display: block;
+            font-size: 0.88rem;
+            line-height: 1.15;
+        }
+        .eq-person-row small {
+            display: block;
+            color: #8088a8;
+            font-size: 0.72rem;
+        }
+        .eq-review-cta {
+            margin: 26px auto 0;
+            max-width: 460px;
+            border: 1px solid rgba(67, 84, 149, 0.12);
+            border-radius: 12px;
+            background: #fff;
+            text-align: center;
+            padding: 18px;
+        }
+        .eq-review-cta .btn { margin: 3px; }
+        .eq-last-gradient .eq-home-section {
+            padding-bottom: 40px;
+        }
+        .eq-gradient-checks {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            color: rgba(255,255,255,0.86);
+            font-size: 0.85rem;
+        }
+        .eq-gradient-checks li {
+            position: relative;
+            padding-left: 18px;
+        }
+        .eq-gradient-checks li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            top: -1px;
+            color: #73e18e;
+            font-weight: 700;
+        }
+        .eq-progress-panel {
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.16);
+            background: rgba(255,255,255,0.1);
+            padding: 34px 20px;
+        }
+        .eq-progress-track {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.22);
+            overflow: hidden;
+        }
+        .eq-progress-track span {
+            display: block;
+            width: 75%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #ffcb42, #ff9c3d);
+        }
+        footer.eq-site-footer {
+            background: #0f1a3a !important;
+            border-top: 1px solid rgba(255,255,255,0.05) !important;
+            padding: 44px 0 20px;
+            color: #fff;
+        }
+        .eq-site-footer .eq-brand-logo {
+            filter: none;
+            max-width: 180px;
+            height: auto;
+        }
+        .eq-site-footer h6 {
+            margin-bottom: 10px;
+            color: #fff;
+            font-size: 0.92rem;
+        }
+        .eq-site-footer a {
+            display: block;
+            color: rgba(255,255,255,0.72);
+            text-decoration: none;
+            margin-bottom: 6px;
+            font-size: 0.84rem;
+        }
+        .eq-site-footer a:hover { color: #fff; }
+        .eq-footer-meta {
+            color: rgba(255,255,255,0.68);
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+        }
+        .eq-socials {
+            display: flex;
+            gap: 8px;
+            margin-top: 5px;
+        }
+        .eq-socials span {
+            width: 28px;
+            height: 28px;
+            border-radius: 7px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            font-size: 0.75rem;
+            color: #fff;
+        }
+        .eq-footer-feature-row {
+            margin-top: 24px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 14px 0;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            color: rgba(255,255,255,0.86);
+            font-size: 0.84rem;
+        }
+        .eq-footer-bottom {
+            padding-top: 12px;
+            font-size: 0.74rem;
+            color: rgba(255,255,255,0.6);
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
         @media (max-width: 991px) {
             .hero {
                 border-radius: 0 0 18px 18px;
@@ -437,6 +927,20 @@ $authUser = current_user();
                 height: 28px;
                 max-width: 150px;
             }
+            .eq-home-hero {
+                padding: 50px 16px;
+            }
+            .eq-home-hero-grid {
+                grid-template-columns: 1fr;
+            }
+            .eq-stat-grid,
+            .eq-recognition-grid,
+            .eq-footer-feature-row {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .eq-gradient-checks {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 480px) {
@@ -449,6 +953,12 @@ $authUser = current_user();
             .eq-brand-text {
                 display: inline;
                 font-size: 1rem;
+            }
+            .eq-home-hero-metrics,
+            .eq-stat-grid,
+            .eq-recognition-grid,
+            .eq-footer-feature-row {
+                grid-template-columns: 1fr;
             }
         }
 

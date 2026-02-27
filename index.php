@@ -2,299 +2,295 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
+
+$pdo = get_pdo();
+
+$stats = [
+    'students' => 50000,
+    'courses' => 500,
+    'success_rate' => 95,
+    'lessons' => 120000,
+    'countries' => 50,
+    'badges' => 100,
+];
+
+try {
+    $students = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role='student'")->fetchColumn();
+    $courses = (int)$pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
+    $stats['students'] = max($stats['students'], $students);
+    $stats['courses'] = max($stats['courses'], $courses);
+} catch (Throwable $e) {
+    // Keep curated defaults if DB is empty/unavailable for optional homepage metrics.
+}
+
+$testimonials = [
+    [
+        'name' => 'Sarah Johnson',
+        'grade' => 'Grade 12 Student',
+        'city' => 'New York, USA',
+        'text' => 'The balanced approach to academics and creativity helped me maintain excellent grades while exploring design.',
+        'tags' => ['Academic Excellence', 'Creative Design', 'Leadership'],
+    ],
+    [
+        'name' => 'Arjun Patel',
+        'grade' => 'Grade 10 Student',
+        'city' => 'Mumbai, India',
+        'text' => 'Project-based programming and robotics kept me motivated. The progress tracking helped me stay consistent.',
+        'tags' => ['Technical Skills', 'Programming', 'Problem Solving'],
+    ],
+    [
+        'name' => 'Emma Chen',
+        'grade' => 'Grade 8 Student',
+        'city' => 'Toronto, Canada',
+        'text' => 'Courses are engaging and community learning helped me collaborate with students from different regions.',
+        'tags' => ['Creative Writing', 'Communication', 'Teamwork'],
+    ],
+    [
+        'name' => 'Michael Rodriguez',
+        'grade' => 'Grade 11 Student',
+        'city' => 'Madrid, Spain',
+        'text' => 'I now feel confident leading projects and communicating clearly with peers in collaborative assignments.',
+        'tags' => ['Leadership', 'Communication', 'Academic Excellence'],
+    ],
+    [
+        'name' => 'Priya Sharma',
+        'grade' => 'Grade 9 Student',
+        'city' => 'Delhi, India',
+        'text' => 'Personalized learning paths adapt to my pace and interests, especially for creative and math-focused learning.',
+        'tags' => ['Creative Arts', 'Mathematics', 'Innovation'],
+    ],
+    [
+        'name' => 'David Kim',
+        'grade' => 'Grade 7 Student',
+        'city' => 'Seoul, South Korea',
+        'text' => 'Quick reels and micro lessons give me short boosts of motivation and practical digital skills every day.',
+        'tags' => ['Technical Skills', 'Digital Literacy', 'Leadership'],
+    ],
+];
 ?>
 
-<section class="hero">
-    <div class="row align-items-center g-4 position-relative">
-        <div class="col-lg-6">
-            <div class="eq-hero-copy">
-                <div class="eq-chip">Trusted by modern education teams</div>
-                <h1>
-                    Master Skills Beyond
-                    <span class="accent">Traditional Learning</span>
-                </h1>
-                <p>
-                    Join the EduquestIQ platform where academic excellence meets creative innovation,
-                    leadership growth, and technical mastery. Built for students, parents, teachers, and schools.
-                </p>
-
-                <div class="eq-hero-actions">
-                    <a href="<?php echo htmlspecialchars(url_for('register.php')); ?>" class="btn btn-primary btn-lg">
-                        Start Your Journey
-                    </a>
-                    <a href="<?php echo htmlspecialchars(url_for('login.php')); ?>" class="btn btn-outline-light btn-lg">
-                        Watch Demo
-                    </a>
-                </div>
-
-                <div class="eq-trust-strip">
-                    <div class="eq-metric">
-                        <strong>50K+</strong>
-                        <span>Active learners</span>
-                    </div>
-                    <div class="eq-metric">
-                        <strong>500+</strong>
-                        <span>Schools & teachers</span>
-                    </div>
-                    <div class="eq-metric">
-                        <strong>95%</strong>
-                        <span>Skill improvement rate</span>
-                    </div>
-                </div>
+<section class="eq-home-hero">
+    <div class="eq-home-hero-grid">
+        <div>
+            <div class="eq-chip">Trusted by 10,000+ students worldwide</div>
+            <h1>
+                Master Skills Beyond
+                <span class="accent">Traditional Learning</span>
+            </h1>
+            <p>
+                Join the EduquestIQ platform where academic excellence meets creative innovation,
+                leadership development, and technical mastery. Designed for students aged 6-20.
+            </p>
+            <div class="eq-home-hero-actions">
+                <a href="<?php echo htmlspecialchars(url_for('register.php')); ?>" class="btn btn-light btn-lg">Start Your Journey</a>
+                <a href="<?php echo htmlspecialchars(url_for('video_lectures.php')); ?>" class="btn btn-outline-light btn-lg">Watch Demo</a>
+            </div>
+            <div class="eq-home-hero-metrics">
+                <div><strong><?php echo number_format($stats['students']); ?>+</strong><span>Students</span></div>
+                <div><strong><?php echo number_format($stats['courses']); ?>+</strong><span>Courses</span></div>
+                <div><strong><?php echo (int)$stats['success_rate']; ?>%</strong><span>Success Rate</span></div>
             </div>
         </div>
 
-        <div class="col-lg-6">
-            <div class="eq-dashboard-mock mx-lg-3">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="small fw-semibold opacity-75">EduquestIQ Dashboard</div>
-                    <div class="rounded-circle bg-warning" style="width: 22px; height: 22px;"></div>
-                </div>
-
-                <div class="text-center">
-                    <div class="eq-ring">75%</div>
-                </div>
-
-                <div class="eq-mini-grid mb-3">
-                    <div class="eq-subtle text-center">
-                        <div class="small opacity-75">Academic</div>
-                        <div class="fw-bold">88%</div>
-                    </div>
-                    <div class="eq-subtle text-center">
-                        <div class="small opacity-75">Creative</div>
-                        <div class="fw-bold">76%</div>
-                    </div>
-                    <div class="eq-subtle text-center">
-                        <div class="small opacity-75">Leadership</div>
-                        <div class="fw-bold">72%</div>
-                    </div>
-                    <div class="eq-subtle text-center">
-                        <div class="small opacity-75">Technical</div>
-                        <div class="fw-bold">84%</div>
-                    </div>
-                </div>
-
-                <div class="eq-subtle">
-                    <div class="small fw-semibold mb-2 opacity-75">Recent Activity</div>
-                    <div class="d-flex justify-content-between small mb-1"><span>Assessment Skill Update</span><span class="opacity-75">+8%</span></div>
-                    <div class="d-flex justify-content-between small mb-1"><span>Course Completion Score</span><span class="opacity-75">+12%</span></div>
-                    <div class="d-flex justify-content-between small"><span>Community Learning Streak</span><span class="opacity-75">+5</span></div>
-                </div>
+        <div class="eq-hero-panel">
+            <div class="eq-hero-panel-head">
+                <span>EduquestIQ Dashboard</span>
+                <span class="eq-panel-badge">◎</span>
+            </div>
+            <div class="eq-hero-panel-ring">75%<small>Complete</small></div>
+            <div class="eq-hero-panel-grid">
+                <div><small>Academic</small><strong>85%</strong></div>
+                <div><small>Creative</small><strong>70%</strong></div>
+                <div><small>Leadership</small><strong>60%</strong></div>
+                <div><small>Technical</small><strong>90%</strong></div>
+            </div>
+            <div class="eq-hero-panel-activity">
+                <h6>Recent Activity</h6>
+                <p>Completed Math Challenge <span>2h ago</span></p>
+                <p>Watched Creative Video <span>5h ago</span></p>
+                <p>Earned Leadership Badge <span>1d ago</span></p>
             </div>
         </div>
     </div>
 </section>
 
-<section class="eq-section">
+<section class="eq-home-section">
     <div class="eq-section-title">
         <h2>Holistic Skills Development</h2>
-        <p>
-            Our comprehensive platform tracks essential skill domains across academics, creativity,
-            leadership, and technical growth for learners aged 6-20.
-        </p>
+        <p>Our comprehensive platform covers four essential skill domains, ensuring holistic development for students aged 6-20.</p>
     </div>
 
     <div class="row g-3">
         <div class="col-md-6 col-xl-3">
-            <div class="eq-feature-card" style="background: linear-gradient(180deg,#f4f8ff,#ffffff);">
-                <div class="eq-feature-icon" style="background:#e7efff;color:#3866ff;">A</div>
-                <h5 class="mb-2">Academic Excellence</h5>
-                <p class="small eq-muted">Measure core subject mastery through mapped tests, assignments, and learning paths.</p>
-                <ul class="eq-list-clean">
+            <article class="eq-skill-card academic">
+                <div class="eq-skill-icon">📘</div>
+                <h5>Academic Excellence</h5>
+                <p>Master core subjects with interactive lessons, practice tests, and personalized learning paths.</p>
+                <ul>
                     <li>Mathematics</li>
                     <li>Science</li>
-                    <li>Language</li>
+                    <li>English</li>
                     <li>Social Studies</li>
                 </ul>
-            </div>
+            </article>
         </div>
         <div class="col-md-6 col-xl-3">
-            <div class="eq-feature-card" style="background: linear-gradient(180deg,#faf4ff,#ffffff);">
-                <div class="eq-feature-icon" style="background:#f0e2ff;color:#9148ff;">C</div>
-                <h5 class="mb-2">Creative Development</h5>
-                <p class="small eq-muted">Unlock artistic potential with project-based learning and skill tracking.</p>
-                <ul class="eq-list-clean">
-                    <li>Visual Arts</li>
+            <article class="eq-skill-card creative">
+                <div class="eq-skill-icon">🎨</div>
+                <h5>Creative Development</h5>
+                <p>Unlock your artistic potential through creative writing, design thinking, and innovative problem-solving.</p>
+                <ul>
+                    <li>Art &amp; Design</li>
+                    <li>Creative Writing</li>
                     <li>Music Theory</li>
-                    <li>Storytelling</li>
                     <li>Innovation</li>
                 </ul>
-            </div>
+            </article>
         </div>
         <div class="col-md-6 col-xl-3">
-            <div class="eq-feature-card" style="background: linear-gradient(180deg,#f2fff6,#ffffff);">
-                <div class="eq-feature-icon" style="background:#dff8e6;color:#28a65b;">L</div>
-                <h5 class="mb-2">Leadership Skills</h5>
-                <p class="small eq-muted">Build teamwork, communication, and confidence through community learning.</p>
-                <ul class="eq-list-clean">
+            <article class="eq-skill-card leadership">
+                <div class="eq-skill-icon">🧩</div>
+                <h5>Leadership Skills</h5>
+                <p>Build essential interpersonal qualities through teamwork, communication, and collaborative projects.</p>
+                <ul>
                     <li>Communication</li>
                     <li>Teamwork</li>
                     <li>Problem Solving</li>
                     <li>Initiative</li>
                 </ul>
-            </div>
+            </article>
         </div>
         <div class="col-md-6 col-xl-3">
-            <div class="eq-feature-card" style="background: linear-gradient(180deg,#fff8f1,#ffffff);">
-                <div class="eq-feature-icon" style="background:#ffe9d3;color:#ff8a2d;">T</div>
-                <h5 class="mb-2">Technical Mastery</h5>
-                <p class="small eq-muted">Track coding, digital fluency, and tool usage through practical tasks.</p>
-                <ul class="eq-list-clean">
+            <article class="eq-skill-card technical">
+                <div class="eq-skill-icon">⚡</div>
+                <h5>Technical Mastery</h5>
+                <p>Learn edge technical skills including coding, robotics, and digital literacy.</p>
+                <ul>
                     <li>Programming</li>
                     <li>Robotics</li>
                     <li>Digital Skills</li>
                     <li>Data Analysis</li>
                 </ul>
+            </article>
+        </div>
+    </div>
+</section>
+
+<section class="eq-home-section eq-home-platform">
+    <div class="eq-section-title">
+        <h2>Powerful Learning Platform</h2>
+        <p>Everything you need to succeed, all in one place.</p>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Video Lectures</h6><p>High-quality video content with interactive elements and progress tracking.</p><a href="<?php echo htmlspecialchars(url_for('video_lectures.php')); ?>">500+ Videos</a></div></div>
+        <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Study Materials</h6><p>Comprehensive resources including PDFs, guides, and reference documents.</p><a href="<?php echo htmlspecialchars(url_for('materials.php')); ?>">1000+ Resources</a></div></div>
+        <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Progress Tracking</h6><p>Real-time analytics and personalized insights for continuous improvement.</p><a href="<?php echo htmlspecialchars(url_for('dashboard.php')); ?>">95% Success Rate</a></div></div>
+        <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Achievement System</h6><p>Gamified learning with badges, certificates, and recognition programs.</p><a href="<?php echo htmlspecialchars(url_for('dashboard.php')); ?>">100+ Badges</a></div></div>
+        <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Flexible Learning</h6><p>Learn at your own pace with 24/7 access to all platform features.</p><a href="<?php echo htmlspecialchars(url_for('learning_paths.php')); ?>">24/7 Access</a></div></div>
+        <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Community Learning</h6><p>Connect with peers, ask questions, and share growth milestones.</p><a href="<?php echo htmlspecialchars(url_for('community.php')); ?>">Active Community</a></div></div>
+    </div>
+</section>
+
+<section class="eq-home-gradient-zone">
+    <div class="eq-home-section">
+        <div class="eq-section-title light">
+            <h2>Trusted by Students Worldwide</h2>
+            <p>Join thousands of students who are already developing their skills and achieving their goals.</p>
+        </div>
+
+        <div class="eq-stat-grid">
+            <div class="eq-glass-card"><strong><?php echo number_format($stats['students']); ?>+</strong><span>Active Students</span><small>Students from 50+ countries</small></div>
+            <div class="eq-glass-card"><strong><?php echo number_format($stats['courses']); ?>+</strong><span>Courses Available</span><small>Across all skill domains</small></div>
+            <div class="eq-glass-card"><strong><?php echo (int)$stats['success_rate']; ?>%</strong><span>Success Rate</span><small>Measured performance growth</small></div>
+            <div class="eq-glass-card"><strong><?php echo number_format($stats['lessons']); ?>+</strong><span>Lessons Completed</span><small>Learning hours logged</small></div>
+            <div class="eq-glass-card"><strong><?php echo (int)$stats['countries']; ?>+</strong><span>Countries</span><small>Global reach and impact</small></div>
+            <div class="eq-glass-card"><strong>24/7</strong><span>Access</span><small>Learn anytime, anywhere</small></div>
+        </div>
+
+        <div class="eq-section-title light mt-5">
+            <h2>Recognized Excellence</h2>
+            <p>Our commitment to quality education has earned us recognition from leading organizations.</p>
+        </div>
+
+        <div class="eq-recognition-grid">
+            <div class="eq-glass-card"><strong>2023</strong><span>Excellence in Education</span><small>Recognized for innovative learning approaches</small></div>
+            <div class="eq-glass-card"><strong><?php echo (int)$stats['success_rate']; ?>%</strong><span>Skill Improvement</span><small>Students show measurable growth</small></div>
+            <div class="eq-glass-card"><strong>50+</strong><span>Countries Reached</span><small>Global impact across regions</small></div>
+        </div>
+
+        <div class="eq-gradient-cta">
+            <h3>Ready to Start Your Journey?</h3>
+            <p>Join thousands of students who are already developing their skills and achieving their goals.</p>
+            <div>
+                <a href="<?php echo htmlspecialchars(url_for('register.php')); ?>" class="btn btn-light btn-sm px-4">Get Started Free</a>
+                <a href="<?php echo htmlspecialchars(url_for('courses.php')); ?>" class="btn btn-outline-light btn-sm px-4">Learn More</a>
             </div>
         </div>
     </div>
 </section>
 
-<section class="eq-section pt-2">
+<section class="eq-home-section">
     <div class="eq-section-title">
-        <h2>Powerful Learning Platform</h2>
-        <p>Everything students, teachers, parents, and admins need in one integrated system.</p>
+        <h2>What Students Say About EduquestIQ</h2>
+        <p>Hear from students around the world who have transformed their learning journey with EduquestIQ.</p>
     </div>
 
     <div class="row g-3">
-        <?php
-        $items = [
-            ['title' => 'Video Lectures', 'desc' => 'Structured lessons with progress marking and course-level tracking.', 'icon' => 'VL', 'link' => 'video_lectures.php'],
-            ['title' => 'Study Materials', 'desc' => 'PDFs, docs, presentations, and links validated and organized by course.', 'icon' => 'SM', 'link' => 'materials.php'],
-            ['title' => 'Progress Tracking', 'desc' => 'Track completion across videos/materials and update skill scores automatically.', 'icon' => 'PT', 'link' => 'dashboard.php'],
-            ['title' => 'Achievement System', 'desc' => 'Unlock badges for scores, completion milestones, and community activity.', 'icon' => 'AS', 'link' => 'dashboard.php'],
-            ['title' => 'Flexible Learning', 'desc' => 'Follow guided paths or learn self-paced and resume anytime.', 'icon' => 'FL', 'link' => 'learning_paths.php'],
-            ['title' => 'Community Learning', 'desc' => 'Peer discussions, comments, likes, and collaborative growth.', 'icon' => 'CL', 'link' => 'community.php'],
-        ];
-        foreach ($items as $item):
-        ?>
+        <?php foreach ($testimonials as $i => $review): ?>
             <div class="col-md-6 col-xl-4">
-                <div class="eq-feature-card">
-                    <div class="eq-feature-icon" style="background:#edf2ff;color:#4a5fff;"><?php echo htmlspecialchars($item['icon']); ?></div>
-                    <h6 class="mb-2"><?php echo htmlspecialchars($item['title']); ?></h6>
-                    <p class="small eq-muted mb-3"><?php echo htmlspecialchars($item['desc']); ?></p>
-                    <a class="small fw-semibold text-decoration-none" href="<?php echo htmlspecialchars(url_for($item['link'])); ?>">
-                        Learn more
-                    </a>
-                </div>
+                <article class="eq-testimonial-card">
+                    <div class="eq-stars">★★★★★</div>
+                    <p><?php echo htmlspecialchars($review['text']); ?></p>
+                    <div class="eq-tag-row">
+                        <?php foreach ($review['tags'] as $tag): ?>
+                            <span><?php echo htmlspecialchars($tag); ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="eq-person-row">
+                        <div class="eq-avatar"><?php echo htmlspecialchars(substr($review['name'], 0, 1)); ?></div>
+                        <div>
+                            <strong><?php echo htmlspecialchars($review['name']); ?></strong>
+                            <small><?php echo htmlspecialchars($review['grade']); ?></small>
+                            <small><?php echo htmlspecialchars($review['city']); ?></small>
+                        </div>
+                    </div>
+                </article>
             </div>
         <?php endforeach; ?>
     </div>
-</section>
 
-<section class="eq-section pt-2">
-    <div class="eq-section-title">
-        <h2>Role-Based Dashboards That Adapt in Real Time</h2>
-        <p>
-            Every user sees a purpose-built dashboard powered by AJAX, Chart.js, and role-based access control.
-        </p>
-    </div>
-
-    <div class="row g-3">
-        <div class="col-md-6 col-xl-3">
-            <div class="eq-feature-card">
-                <div class="eq-feature-icon" style="background:#e8efff;color:#3e6fff;">S</div>
-                <h6>Student Dashboard</h6>
-                <p class="small eq-muted mb-2">Skill radar chart, progress chart, active courses, upcoming tests, achievements, and community feed.</p>
-                <a href="<?php echo htmlspecialchars(url_for('dashboard.php')); ?>" class="small fw-semibold text-decoration-none">Open dashboard</a>
-            </div>
-        </div>
-        <div class="col-md-6 col-xl-3">
-            <div class="eq-feature-card">
-                <div class="eq-feature-icon" style="background:#f1e8ff;color:#8d46ff;">P</div>
-                <h6>Parent Dashboard</h6>
-                <p class="small eq-muted mb-2">Child skill trend, performance summary, attendance, teacher feedback, and achievement visibility.</p>
-                <a href="<?php echo htmlspecialchars(url_for('parent_children.php')); ?>" class="small fw-semibold text-decoration-none">Link child account</a>
-            </div>
-        </div>
-        <div class="col-md-6 col-xl-3">
-            <div class="eq-feature-card">
-                <div class="eq-feature-icon" style="background:#e7fbef;color:#20a45c;">T</div>
-                <h6>Teacher Dashboard</h6>
-                <p class="small eq-muted mb-2">Class performance analytics, course completion stats, test analysis, and student ranking insights.</p>
-                <a href="<?php echo htmlspecialchars(url_for('manage_lms.php')); ?>" class="small fw-semibold text-decoration-none">Manage LMS data</a>
-            </div>
-        </div>
-        <div class="col-md-6 col-xl-3">
-            <div class="eq-feature-card">
-                <div class="eq-feature-icon" style="background:#fff0df;color:#ff8a2d;">A</div>
-                <h6>Admin Dashboard</h6>
-                <p class="small eq-muted mb-2">User metrics, course stats, engagement signals, and skill distribution across the platform.</p>
-                <a href="<?php echo htmlspecialchars(url_for('manage_lms.php')); ?>" class="small fw-semibold text-decoration-none">Admin controls</a>
-            </div>
-        </div>
+    <div class="eq-review-cta">
+        <a href="<?php echo htmlspecialchars(url_for('register.php')); ?>" class="btn btn-primary btn-sm px-4">Start Free Trial</a>
+        <a href="<?php echo htmlspecialchars(url_for('community.php')); ?>" class="btn btn-outline-secondary btn-sm px-4">View All Reviews</a>
     </div>
 </section>
 
-<section class="eq-section pt-2">
-    <div class="eq-section-title">
-        <h2>Why EduquestIQ Stands Out</h2>
-        <p>
-            Built for production on shared hosting while still delivering dynamic, modern LMS experiences.
-        </p>
-    </div>
-
-    <div class="row g-3">
-        <div class="col-md-4">
-            <div class="eq-feature-card">
-                <h6 class="mb-2">100% Hostinger Compatible</h6>
-                <p class="small eq-muted mb-0">PHP 8.1+, MySQL 8+, Apache `.htaccess`, no Node.js, no build process, and direct `public_html` deployment.</p>
+<section class="eq-home-gradient-zone eq-last-gradient">
+    <div class="eq-home-section">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-6 text-white">
+                <p class="mb-3">Transform your learning experience with our comprehensive platform designed for students aged 6-20. Develop academic, creative, leadership, and technical skills all in one place.</p>
+                <ul class="eq-gradient-checks">
+                    <li>Access to 500+ courses across all domains</li>
+                    <li>Personalized learning paths and progress tracking</li>
+                    <li>Interactive video lectures and study materials</li>
+                    <li>Community features and peer collaboration</li>
+                </ul>
             </div>
-        </div>
-        <div class="col-md-4">
-            <div class="eq-feature-card">
-                <h6 class="mb-2">Secure by Default</h6>
-                <p class="small eq-muted mb-0">JWT auth, prepared statements, CSRF protection, rate-limited login, role validation, and file upload checks.</p>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="eq-feature-card">
-                <h6 class="mb-2">Data-Driven Skill Growth</h6>
-                <p class="small eq-muted mb-0">Every test question can impact multiple sub-attributes using weighted mappings for meaningful progress analytics.</p>
-            </div>
-        </div>
-    </div>
-</section>
-
-<section class="eq-glow-band">
-    <div class="text-center">
-        <h3 class="mb-2">Trusted by Students Worldwide</h3>
-        <p class="mb-4" style="color: rgba(255,255,255,0.82);">
-            Dynamic dashboards, mapped assessments, and role-based insights designed for real learning outcomes.
-        </p>
-        <div class="row g-3 justify-content-center mb-4">
-            <div class="col-md-3 col-6">
-                <div class="eq-soft-card p-3">
-                    <div class="small opacity-75">Skill Mappings</div>
-                    <div class="fs-5 fw-bold">Multi-Attribute</div>
+            <div class="col-lg-6">
+                <div class="eq-progress-panel">
+                    <div class="d-flex justify-content-between small text-white-50 mb-2">
+                        <span>Learning Progress</span>
+                        <span>75% Complete</span>
+                    </div>
+                    <div class="eq-progress-track"><span></span></div>
                 </div>
             </div>
-            <div class="col-md-3 col-6">
-                <div class="eq-soft-card p-3">
-                    <div class="small opacity-75">Dashboard Updates</div>
-                    <div class="fs-5 fw-bold">AJAX + Live Data</div>
-                </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="eq-soft-card p-3">
-                    <div class="small opacity-75">Learning Paths</div>
-                    <div class="fs-5 fw-bold">Structured + Flexible</div>
-                </div>
-            </div>
-            <div class="col-md-3 col-6">
-                <div class="eq-soft-card p-3">
-                    <div class="small opacity-75">Community Learning</div>
-                    <div class="fs-5 fw-bold">Posts & Feedback</div>
-                </div>
-            </div>
-        </div>
-        <div class="d-flex justify-content-center gap-2 flex-wrap">
-            <a href="<?php echo htmlspecialchars(url_for('register.php')); ?>" class="btn btn-light btn-sm px-4">Create Account</a>
-            <a href="<?php echo htmlspecialchars(url_for('courses.php')); ?>" class="btn btn-outline-light btn-sm px-4">Explore Courses</a>
-            <a href="<?php echo htmlspecialchars(url_for('dashboard.php')); ?>" class="btn btn-outline-light btn-sm px-4">Open Dashboard</a>
         </div>
     </div>
 </section>
 
 <?php
+$eqCustomHomeFooter = true;
 require_once __DIR__ . '/includes_footer.php';
