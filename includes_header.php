@@ -1060,13 +1060,15 @@ $metaDescription = $pageMeta[$currentPage][1] ?? 'EduquestIQ is a skills-first L
 
         @media (max-width: 480px) {
             .eq-brand-logo {
-                display: none;
+                display: block;
+                height: 26px;
+                max-width: 150px;
             }
             .eq-brand-mark {
-                display: block;
+                display: none;
             }
             .eq-brand-text {
-                display: inline;
+                display: none;
                 font-size: 1rem;
             }
             .eq-home-hero-metrics,
@@ -1092,7 +1094,6 @@ $metaDescription = $pageMeta[$currentPage][1] ?? 'EduquestIQ is a skills-first L
         <a class="navbar-brand" href="<?php echo htmlspecialchars(url_for('index.php')); ?>">
             <img src="<?php echo htmlspecialchars(url_for('assets/img/eduquestiq-logo-wide.png')); ?>" alt="EduquestIQ" class="eq-brand-logo">
             <img src="<?php echo htmlspecialchars(url_for('assets/img/eduquestiq-logo-icon.png')); ?>" alt="EduquestIQ" class="eq-brand-mark">
-            <span class="eq-brand-text">EduquestIQ</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
             <span class="navbar-toggler-icon"></span>
