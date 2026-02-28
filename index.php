@@ -124,52 +124,82 @@ $testimonials = [
         <div class="col-md-6 col-xl-3">
             <article class="eq-skill-card academic">
                 <div class="eq-skill-icon">📘</div>
-                <h5>Academic Excellence</h5>
+                <h5>Academic Intelligence (AIQ)</h5>
                 <p>Master core subjects with interactive lessons, practice tests, and personalized learning paths.</p>
                 <ul>
                     <li>Mathematics</li>
                     <li>Science</li>
                     <li>English</li>
-                    <li>Social Studies</li>
+                    <li>General Knowledge</li>
+                    <li>Computer Science + AI Basics</li>
                 </ul>
             </article>
         </div>
         <div class="col-md-6 col-xl-3">
             <article class="eq-skill-card creative">
                 <div class="eq-skill-icon">🎨</div>
-                <h5>Creative Development</h5>
-                <p>Unlock your artistic potential through creative writing, design thinking, and innovative problem-solving.</p>
+                <h5>Logical & Analytical Reasoning (LAQ)</h5>
+                <p>Strengthen your analytical skills through logical reasoning, structured thinking, and data-driven problem solving</p>
                 <ul>
-                    <li>Art &amp; Design</li>
-                    <li>Creative Writing</li>
-                    <li>Music Theory</li>
-                    <li>Innovation</li>
+                    <li>Number patterns</li>
+                    <li>Visual reasoning</li>
+                    <li>Syllogisms</li>
+                    <li>Cause & effect</li>
+                    <li>Spatial reasoning</li>
                 </ul>
             </article>
         </div>
         <div class="col-md-6 col-xl-3">
             <article class="eq-skill-card leadership">
                 <div class="eq-skill-icon">🧩</div>
-                <h5>Leadership Skills</h5>
+                <h5>Language Proficiency (LPI)</h5>
                 <p>Build essential interpersonal qualities through teamwork, communication, and collaborative projects.</p>
                 <ul>
-                    <li>Communication</li>
-                    <li>Teamwork</li>
-                    <li>Problem Solving</li>
-                    <li>Initiative</li>
+                    <li>Vocabulary (synonyms, antonyms, word usage)</li>
+                    <li>Phonetics (sound–letter mapping)</li>
+                    <li>Homophones & homonyms</li>
+                    <li>Word formation</li>
+                    <li>Context-based word selection</li>
                 </ul>
             </article>
         </div>
         <div class="col-md-6 col-xl-3">
             <article class="eq-skill-card technical">
                 <div class="eq-skill-icon">⚡</div>
-                <h5>Technical Mastery</h5>
+                <h5>Cognitive Ability & Learning Style (CAL)</h5>
                 <p>Learn edge technical skills including coding, robotics, and digital literacy.</p>
                 <ul>
-                    <li>Programming</li>
-                    <li>Robotics</li>
-                    <li>Digital Skills</li>
-                    <li>Data Analysis</li>
+                    <li>Memory (visual / auditory recall)</li>
+                    <li>Attention span</li>
+                    <li>Processing speed</li>
+                    <li>Pattern recognition speed</li>
+                </ul>
+            </article>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <article class="eq-skill-card leadership">
+                <div class="eq-skill-icon">🧩</div>
+                <h5>Emotional & Social Intelligence (ESQ)</h5>
+                <p>Build essential interpersonal qualities through teamwork, communication, and collaborative projects.</p>
+                <ul>
+                    <li>Emotion recognition</li>
+                    <li>Empathy</li>
+                    <li>Decision-making in social situations</li>
+                    <li>Conflict resolution </li>
+                    <</ul>
+            </article>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <article class="eq-skill-card leadership">
+                <div class="eq-skill-icon">🧩</div>
+                <h5>21st Century Skills Index (21SI))</h5>
+                <p>Build essential interpersonal qualities through teamwork, communication, and collaborative projects.</p>
+                <ul>
+                    <li>Critical thinking</li>
+                    <li>Collaboration (scenario-based)</li>
+                    <li>Communication choices</li>
+                    <li>Digital awareness</li>
+                
                 </ul>
             </article>
         </div>
