@@ -1,9 +1,30 @@
 # EduquestIQ - basic Apache configuration for Hostinger
 
 Options -Indexes
+DirectoryIndex index.php
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # Canonicalize .php URLs to extensionless URLs.
+    RewriteCond %{THE_REQUEST} \s/+([^\s?]+)\.php(?:[\s?]|$) [NC]
+    RewriteRule ^ %1 [R=301,L,NE]
+
+    # Backend subdomain root -> backend console
+    RewriteCond %{HTTP_HOST} ^backend\. [NC]
+    RewriteRule ^$ backend/index.php [L]
+
+    # Block backend routes on non-backend hosts (except localhost/dev)
+    RewriteCond %{REQUEST_URI} ^/backend/ [NC]
+    RewriteCond %{HTTP_HOST} !^backend\. [NC]
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:[0-9]+)?$ [NC]
+    RewriteRule ^ - [F,L]
+
+    # Resolve extensionless URL to matching PHP file.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME}\.php -f
+    RewriteRule ^(.+)$ $1.php [L,QSA]
 
     # Protect sensitive files
     RewriteRule ^(config\.php|schema\.sql|upgrade\.sql|includes_.*|composer\.json|DEPLOYMENT\.md)$ - [F,L]

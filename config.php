@@ -81,8 +81,27 @@ function get_pdo(): PDO
 function url_for(string $path = ''): string
 {
     $base = rtrim(BASE_URL, '/');
-    $path = '/' . ltrim($path, '/');
-    return $base . $path;
+    $path = ltrim($path, '/');
+
+    $query = '';
+    if (str_contains($path, '?')) {
+        [$path, $query] = explode('?', $path, 2);
+    }
+
+    if ($path === '' || $path === 'index.php') {
+        $normalized = '/';
+    } else {
+        if (str_ends_with($path, '.php')) {
+            $path = substr($path, 0, -4);
+        }
+        $normalized = '/' . ltrim($path, '/');
+    }
+
+    if ($query !== '') {
+        $normalized .= '?' . $query;
+    }
+
+    return $base . $normalized;
 }
 
 /**

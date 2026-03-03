@@ -1,9 +1,11 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/includes_header.php';
-
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes_auth.php';
 $user = require_auth([]);
+
+require_once __DIR__ . '/includes_header.php';
 ?>
 
 <div class="eq-page-head d-flex justify-content-between align-items-center flex-wrap gap-2">

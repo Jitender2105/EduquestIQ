@@ -6,6 +6,12 @@ require_once __DIR__ . '/includes_csrf.php';
 
 $user = require_auth(['teacher', 'school_admin']);
 $pdo = get_pdo();
+$schoolsTableReady = false;
+try {
+    $schoolsTableReady = (bool)$pdo->query("SHOW TABLES LIKE 'schools'")->fetchColumn();
+} catch (Throwable $e) {
+    $schoolsTableReady = false;
+}
 
 $errors = [];
 $success = null;
@@ -55,6 +61,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare('INSERT INTO attributes (name, description) VALUES (?, ?)');
                     $stmt->execute([$name, $description !== '' ? $description : null]);
                     $success = 'Attribute created.';
+                    break;
+
+                case 'create_school':
+                    if (!require_admin_or_add_error($user, $errors)) {
+                        break;
+                    }
+                    if (!$schoolsTableReady) {
+                        $errors[] = 'Schools table is missing. Run migration before creating schools.';
+                        break;
+                    }
+                    $name = trim((string)($_POST['name'] ?? ''));
+                    $city = trim((string)($_POST['city'] ?? ''));
+                    $state = trim((string)($_POST['state'] ?? ''));
+                    if ($name === '') {
+                        $errors[] = 'School name is required.';
+                        break;
+                    }
+                    $stmt = $pdo->prepare('INSERT INTO schools (name, city, state, status) VALUES (?, ?, ?, "active")');
+                    $stmt->execute([$name, $city !== '' ? $city : null, $state !== '' ? $state : null]);
+                    $success = 'School created.';
                     break;
 
                 case 'create_sub_attribute':
@@ -504,7 +530,20 @@ if ($user['role'] === 'teacher') {
 
 $teachers = $pdo->query('SELECT id, name, email FROM users WHERE role = "teacher" AND status = "active" ORDER BY name')->fetchAll();
 $studentsForAttendance = $pdo->query('SELECT id, name, email, school_id, status FROM users WHERE role = "student" ORDER BY id DESC LIMIT 200')->fetchAll();
-$usersForAdmin = $pdo->query('SELECT id, name, email, role, school_id, status FROM users ORDER BY id DESC LIMIT 200')->fetchAll();
+$schools = [];
+if ($schoolsTableReady) {
+    $schools = $pdo->query('SELECT id, name, city, state, status FROM schools ORDER BY name ASC LIMIT 500')->fetchAll();
+}
+$usersForAdmin = $pdo->query(
+    $schoolsTableReady
+        ? 'SELECT u.id, u.name, u.email, u.role, u.school_id, u.status, s.name AS school_name
+           FROM users u
+           LEFT JOIN schools s ON s.id = u.school_id
+           ORDER BY u.id DESC LIMIT 200'
+        : 'SELECT u.id, u.name, u.email, u.role, u.school_id, u.status, NULL AS school_name
+           FROM users u
+           ORDER BY u.id DESC LIMIT 200'
+)->fetchAll();
 $videos = $pdo->query(
     'SELECT vl.id, vl.title, vl.course_id, c.title AS course_title, vl.sequence_order
      FROM video_lectures vl JOIN courses c ON c.id = vl.course_id
@@ -581,6 +620,13 @@ require_once __DIR__ . '/includes_header.php';
         </ul>
     </div>
 <?php endif; ?>
+<?php if (!$schoolsTableReady): ?>
+    <div class="alert alert-warning">
+        Schools module is not yet installed. Run migration
+        <code>migrations/2026-02-28_registration_school_upgrade.sql</code>
+        to enable school search in registration and admin school management.
+    </div>
+<?php endif; ?>
 
 <div class="card p-3 mb-3">
     <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -592,7 +638,7 @@ require_once __DIR__ . '/includes_header.php';
         <a class="btn btn-outline-primary btn-sm" href="#headingArticles">Articles</a>
         <a class="btn btn-outline-primary btn-sm" href="#headingPaths">Paths & Achievements</a>
         <?php if ($user['role'] === 'school_admin'): ?>
-            <a class="btn btn-outline-primary btn-sm" href="#headingAdminOps">Users & Attendance</a>
+            <a class="btn btn-outline-primary btn-sm" href="#headingAdminOps">Schools, Users & Attendance</a>
         <?php endif; ?>
     </div>
 </div>
@@ -1059,13 +1105,24 @@ require_once __DIR__ . '/includes_header.php';
         <div class="accordion-item">
             <h2 class="accordion-header" id="headingAdminOps">
                 <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdminOps">
-                    Users & Attendance (Admin)
+                    Schools, Users & Attendance (Admin)
                 </button>
             </h2>
             <div id="collapseAdminOps" class="accordion-collapse collapse" data-bs-parent="#manageAccordion">
                 <div class="accordion-body">
                     <div class="row g-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <form method="post" class="card p-3">
+                                <?php echo csrf_field(); ?>
+                                <input type="hidden" name="action" value="create_school">
+                                <h6>Create School (for registration list)</h6>
+                                <input class="form-control mb-2" name="name" placeholder="School name" required>
+                                <input class="form-control mb-2" name="city" placeholder="City (optional)">
+                                <input class="form-control mb-2" name="state" placeholder="State (optional)">
+                                <button class="btn btn-primary btn-sm">Add School</button>
+                            </form>
+                        </div>
+                        <div class="col-md-4">
                             <form method="post" class="card p-3">
                                 <?php echo csrf_field(); ?>
                                 <input type="hidden" name="action" value="update_user">
@@ -1082,11 +1139,18 @@ require_once __DIR__ . '/includes_header.php';
                                     <option value="active">Active</option>
                                     <option value="inactive">Inactive</option>
                                 </select>
-                                <input class="form-control mb-2" type="number" min="1" name="school_id" placeholder="School ID (blank to clear)">
+                                <select class="form-select mb-2" name="school_id">
+                                    <option value="">Clear school</option>
+                                    <?php foreach ($schools as $school): ?>
+                                        <option value="<?php echo (int)$school['id']; ?>">
+                                            #<?php echo (int)$school['id']; ?> <?php echo htmlspecialchars($school['name'] . (!empty($school['city']) ? ' - ' . $school['city'] : '')); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                                 <button class="btn btn-primary btn-sm">Update User</button>
                             </form>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <form method="post" class="card p-3">
                                 <?php echo csrf_field(); ?>
                                 <input type="hidden" name="action" value="mark_attendance">
@@ -1111,7 +1175,20 @@ require_once __DIR__ . '/includes_header.php';
                     </div>
 
                     <div class="row g-3 mt-1">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <div class="card p-3">
+                                <h6>Schools</h6>
+                                <ul class="small mb-0">
+                                    <?php foreach (array_slice($schools, 0, 20) as $school): ?>
+                                        <li>
+                                            #<?php echo (int)$school['id']; ?> <?php echo htmlspecialchars($school['name']); ?>
+                                            <?php if (!empty($school['city'])): ?> - <?php echo htmlspecialchars($school['city']); ?><?php endif; ?>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
                             <div class="card p-3">
                                 <h6>Recent Users</h6>
                                 <ul class="small mb-0">
@@ -1120,13 +1197,13 @@ require_once __DIR__ . '/includes_header.php';
                                             #<?php echo (int)$u['id']; ?> <?php echo htmlspecialchars($u['name']); ?>
                                             [<?php echo htmlspecialchars($u['role']); ?>]
                                             - <?php echo htmlspecialchars($u['status']); ?>
-                                            - school: <?php echo $u['school_id'] !== null ? (int)$u['school_id'] : 'null'; ?>
+                                            - school: <?php echo $u['school_name'] ? htmlspecialchars($u['school_name']) : 'null'; ?>
                                         </li>
                                     <?php endforeach; ?>
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="card p-3">
                                 <h6>Recent Attendance</h6>
                                 <ul class="small mb-0">

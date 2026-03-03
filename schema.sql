@@ -35,6 +35,17 @@ DROP TABLE IF EXISTS parent_student_links;
 DROP TABLE IF EXISTS teacher_feedback;
 DROP TABLE IF EXISTS attendance;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS schools;
+
+CREATE TABLE schools (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(180) NOT NULL,
+  city VARCHAR(100) NULL,
+  state VARCHAR(100) NULL,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_school_name_city (name, city)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 1️⃣ CORE USER SYSTEM
 
@@ -45,12 +56,18 @@ CREATE TABLE users (
   password VARCHAR(255) NOT NULL,
   role ENUM('student','parent','teacher','school_admin') NOT NULL,
   school_id INT NULL,
+  age TINYINT UNSIGNED NULL,
+  grade VARCHAR(20) NULL,
+  role_profile JSON NULL,
+  terms_accepted TINYINT(1) NOT NULL DEFAULT 0,
+  terms_accepted_at TIMESTAMP NULL DEFAULT NULL,
   profile_image VARCHAR(255) NULL,
   status ENUM('active','inactive') DEFAULT 'active',
   email_verified TINYINT(1) DEFAULT 0,
   skills JSON NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_users_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Login rate limiting helper

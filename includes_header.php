@@ -7,7 +7,8 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes_auth.php';
 
 $authUser = current_user();
-$currentPage = basename((string)($_SERVER['SCRIPT_NAME'] ?? 'index.php'));
+$scriptPath = ltrim((string)($_SERVER['SCRIPT_NAME'] ?? 'index.php'), '/');
+$currentPage = basename($scriptPath);
 $pageMeta = [
     'index.php' => ['EduquestIQ | Skills-First Learning Platform', 'Master academics, creativity, leadership, and technical skills with dynamic courses, tests, and progress dashboards.'],
     'about.php' => ['About EduquestIQ | What We Do', 'Learn how EduquestIQ helps students, parents, teachers, and schools drive measurable learning outcomes.'],
@@ -30,9 +31,25 @@ $pageMeta = [
     'privacy.php' => ['Privacy Policy | EduquestIQ', 'Read how EduquestIQ handles, secures, and processes user data.'],
     'terms.php' => ['Terms & Conditions | EduquestIQ', 'Review the terms governing use of the EduquestIQ platform.'],
     'material_upload.php' => ['Upload Material | EduquestIQ', 'Upload validated study resources linked to courses and learners.'],
+    'backend/index.php' => ['Backend Overview | EduquestIQ', 'Backend console with entity-specific administration pages.'],
+    'backend/schools.php' => ['Backend Schools | EduquestIQ', 'Manage school master records for role-based onboarding and reporting scopes.'],
+    'backend/taxonomy.php' => ['Backend Taxonomy | EduquestIQ', 'Manage subjects, grades, sessions, categories, and tags for EduquestIQ.'],
+    'backend/attributes.php' => ['Backend Attributes | EduquestIQ', 'Manage attributes and sub-attributes for skill mapping logic.'],
+    'backend/questions.php' => ['Backend Questions | EduquestIQ', 'Manage question bank, options, mappings, and blueprint metadata.'],
+    'backend/tests.php' => ['Backend Tests | EduquestIQ', 'Configure tests, mappings, and operational assessment settings.'],
+    'backend/courses.php' => ['Backend Courses | EduquestIQ', 'Manage courses and taxonomy mappings in backend console.'],
+    'backend/videos.php' => ['Backend Videos | EduquestIQ', 'Manage video tutorials and visibility metadata.'],
+    'backend/materials.php' => ['Backend Materials | EduquestIQ', 'Manage study materials and resource metadata.'],
+    'backend/articles.php' => ['Backend Articles | EduquestIQ', 'Manage article links and knowledge resources.'],
+    'backend/content.php' => ['Backend Content Metadata | EduquestIQ', 'Manage cross-content metadata and publishing controls.'],
+    'backend/paths.php' => ['Backend Learning Paths | EduquestIQ', 'Manage learning paths and course sequence mappings.'],
+    'backend/achievements.php' => ['Backend Achievements | EduquestIQ', 'Manage achievements and criteria configuration.'],
+    'backend/community.php' => ['Backend Community | EduquestIQ', 'Moderate community posts and maintain safe engagement.'],
+    'backend/users.php' => ['Backend Users | EduquestIQ', 'Manage user status, school assignment, and profile governance.'],
 ];
-$metaTitle = $pageMeta[$currentPage][0] ?? 'EduquestIQ | Learning Platform';
-$metaDescription = $pageMeta[$currentPage][1] ?? 'EduquestIQ is a skills-first LMS for students, parents, teachers, and school administrators.';
+$meta = $pageMeta[$scriptPath] ?? $pageMeta[$currentPage] ?? null;
+$metaTitle = $meta[0] ?? 'EduquestIQ | Learning Platform';
+$metaDescription = $meta[1] ?? 'EduquestIQ is a skills-first LMS for students, parents, teachers, and school administrators.';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1105,9 +1122,6 @@ $metaDescription = $pageMeta[$currentPage][1] ?? 'EduquestIQ is a skills-first L
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('tests.php')); ?>">Tests</a></li>
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('learning_paths.php')); ?>">Learning Paths</a></li>
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('community.php')); ?>">Community</a></li>
-                <?php if ($authUser && in_array($authUser['role'], ['teacher', 'school_admin'], true)): ?>
-                    <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('backend.php')); ?>">Backend</a></li>
-                <?php endif; ?>
                 <?php if ($authUser && in_array($authUser['role'], ['parent', 'school_admin'], true)): ?>
                     <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('parent_children.php')); ?>">Parent Links</a></li>
                 <?php endif; ?>
