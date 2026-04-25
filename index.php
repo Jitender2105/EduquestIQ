@@ -92,31 +92,14 @@ $testimonials = [
             </div>
         </div>
 
-        <div class="eq-hero-panel">
-            <div class="eq-hero-panel-head">
-                <span>EduquestIQ Dashboard</span>
-                <span class="eq-panel-badge">◎</span>
-            </div>
-            <div class="eq-hero-panel-ring">75%<small>Complete</small></div>
-            <div class="eq-hero-panel-grid">
-                <div><small>Academic</small><strong>85%</strong></div>
-                <div><small>Creative</small><strong>70%</strong></div>
-                <div><small>Leadership</small><strong>60%</strong></div>
-                <div><small>Technical</small><strong>90%</strong></div>
-            </div>
-            <div class="eq-hero-panel-activity">
-                <h6>Recent Activity</h6>
-                <p>Completed Math Challenge <span>2h ago</span></p>
-                <p>Watched Creative Video <span>5h ago</span></p>
-                <p>Earned Leadership Badge <span>1d ago</span></p>
-            </div>
-        </div>
+        
     </div>
 </section>
 
 <section class="eq-home-section">
     <div class="eq-section-title">
-        <h2>Holistic Skills Development</h2>
+        <h2>Student Intelligence & Readiness Assessment (SIRA) 
+        </h2>
         <p>Our comprehensive platform covers four essential skill domains, ensuring holistic development for students aged 6-20.</p>
     </div>
 
@@ -124,15 +107,12 @@ $testimonials = [
         <div class="col-md-6 col-xl-3">
             <article class="eq-skill-card academic">
                 <div class="eq-skill-icon">📘</div>
-                <h5>Academic Intelligence (AIQ)</h5>
-                <p>Master core subjects with interactive lessons, practice tests, and personalized learning paths.</p>
+                <h5>STEM Intelligence (AIQ)</h5>
+                <p>Strengthen your analytical skills through logical reasoning, structured thinking, and data-driven problem solving</p>
                 <ul>
                     <li>Mathematics</li>
                     <li>Science</li>
-                    <li>English</li>
-                    <li>General Knowledge</li>
-                    <li>Computer Science + AI Basics</li>
-                </ul>
+                
             </article>
         </div>
         <div class="col-md-6 col-xl-3">
