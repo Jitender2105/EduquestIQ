@@ -170,38 +170,63 @@ $testimonials = [
 
 <style>
     .eq-home-lead-card {
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.26);
-        border-radius: 18px;
-        padding: 18px;
-        box-shadow: 0 18px 36px rgba(29, 14, 102, 0.18);
+        position: relative;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 24px;
+        padding: 22px;
+        box-shadow: 0 22px 48px rgba(29, 14, 102, 0.22);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
     }
     .eq-home-lead-card h3 {
         color: #fff;
-        font-size: 1.2rem;
-        margin-bottom: 4px;
+        font-size: 1.25rem;
+        margin-bottom: 6px;
+        letter-spacing: -0.02em;
     }
     .eq-home-lead-card p {
         color: rgba(255, 255, 255, 0.82);
-        font-size: 0.84rem;
-        margin-bottom: 12px;
+        font-size: 0.88rem;
+        margin-bottom: 16px;
+        line-height: 1.5;
     }
     .eq-home-lead-card .form-label {
         color: rgba(255, 255, 255, 0.92);
-        font-size: 0.78rem;
-        margin-bottom: 4px;
+        font-size: 0.77rem;
+        margin-bottom: 5px;
         font-weight: 700;
+        letter-spacing: 0.02em;
     }
     .eq-home-lead-card .form-control,
     .eq-home-lead-card .form-select {
-        background: rgba(255, 255, 255, 0.96);
-        border-color: rgba(255, 255, 255, 0.9);
+        background: rgba(255, 255, 255, 0.97);
+        border-color: rgba(255, 255, 255, 0.88);
+        border-radius: 12px;
+        box-shadow: none;
+        min-height: 42px;
+        font-size: 0.92rem;
+    }
+    .eq-home-lead-card .form-control:focus,
+    .eq-home-lead-card .form-select:focus {
+        border-color: rgba(99, 102, 241, 0.7);
+        box-shadow: 0 0 0 0.18rem rgba(99, 102, 241, 0.14);
     }
     .eq-home-lead-card .btn {
         width: 100%;
+        border-radius: 12px;
+        min-height: 44px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+    }
+    .eq-home-lead-card .btn-light {
+        background: linear-gradient(135deg, #ffffff, #f4f7ff);
+        border: 0;
+        color: #24306b;
+        box-shadow: 0 10px 22px rgba(255, 255, 255, 0.18);
     }
     .eq-home-multiselect {
-        min-height: 112px;
+        min-height: 108px;
     }
     .eq-sira-grid {
         display: grid;
@@ -222,17 +247,19 @@ $testimonials = [
     }
     .eq-sira-visual-wrap {
         border-radius: 16px;
-        background: #fff;
+        background: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%);
         border: 1px solid rgba(79, 96, 168, 0.12);
+        padding: 16px;
         overflow: hidden;
         box-shadow: 0 12px 26px rgba(30, 45, 102, 0.08);
         height: 100%;
     }
     .eq-sira-visual-wrap img {
         width: 100%;
-        height: 100%;
-        object-fit: cover;
+        height: auto;
+        object-fit: contain;
         display: block;
+        border-radius: 12px;
     }
     @media (max-width: 991px) {
         .eq-sira-grid {
@@ -240,6 +267,25 @@ $testimonials = [
         }
         .eq-sira-copy {
             grid-template-columns: 1fr;
+        }
+    }
+    @media (min-width: 992px) {
+        .eq-home-lead-card form {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .eq-home-lead-card .mb-3,
+        .eq-home-lead-card .eq-full-span {
+            grid-column: 1 / -1;
+        }
+        .eq-home-lead-card .mb-2,
+        .eq-home-lead-card .mb-3 {
+            margin-bottom: 0 !important;
+        }
+        .eq-home-lead-card .btn {
+            grid-column: 1 / -1;
+            margin-top: 2px;
         }
     }
 </style>
@@ -304,7 +350,7 @@ $testimonials = [
                     <label class="form-label" for="lead-parent-mobile">Parent Mobile Number</label>
                     <input class="form-control form-control-sm" id="lead-parent-mobile" name="parent_mobile" maxlength="20" required value="<?php echo htmlspecialchars($leadForm['parent_mobile']); ?>">
                 </div>
-                <div class="mb-3">
+                <div class="mb-3 eq-full-span">
                     <label class="form-label" for="lead-exam">Exam (Multi Select)</label>
                     <select class="form-select form-select-sm eq-home-multiselect" id="lead-exam" name="exam[]" multiple required>
                         <?php foreach ($examOptions as $code => $label): ?>
@@ -313,6 +359,7 @@ $testimonials = [
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <div class="text-white-50 small mt-1">Hold Ctrl / Cmd to choose multiple exams.</div>
                 </div>
                 <button class="btn btn-light btn-sm" type="submit">Submit Lead</button>
             </form>
