@@ -518,14 +518,12 @@ if ($questionIds) {
         }
     }
 
-    function finishTest() {
-        cards.forEach(function (_, index) {
-            setVisited(index);
-        });
+    function finishTest(forceSubmit) {
+        setVisited(currentIndex);
         renderCounts();
         const notAnswered = Number(notAnsweredEl.textContent || '0');
         const notAttempted = Number(notAttemptedEl.textContent || '0');
-        if ((notAnswered + notAttempted) > 0) {
+        if (!forceSubmit && (notAnswered + notAttempted) > 0) {
             const proceed = window.confirm('Some questions are still unanswered or not attempted. Submit the test now?');
             if (!proceed) {
                 return;
@@ -542,7 +540,7 @@ if ($questionIds) {
         timeLeftEl.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
         if (remaining <= 0) {
             clearInterval(timerId);
-            finishTest();
+            finishTest(true);
         }
     }
 
@@ -556,7 +554,6 @@ if ($questionIds) {
     document.querySelectorAll('[data-answer-input]').forEach(function (input) {
         input.addEventListener('change', function () {
             setVisited(currentIndex);
-            setReview(currentIndex, false);
             renderCounts();
         });
         input.addEventListener('input', function () {
@@ -571,7 +568,7 @@ if ($questionIds) {
     btnReview.addEventListener('click', markForReview);
     btnFinish.addEventListener('click', function (event) {
         event.preventDefault();
-        finishTest();
+        finishTest(false);
     });
 
     showQuestion(0);
