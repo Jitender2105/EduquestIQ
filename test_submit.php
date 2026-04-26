@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes_auth.php';
 require_once __DIR__ . '/includes_csrf.php';
 require_once __DIR__ . '/includes_skills.php';
+require_once __DIR__ . '/includes_sira.php';
 
 $user = require_auth(['student']);
 
@@ -67,6 +68,9 @@ try {
 
     $selectedMcq = $_POST['q'] ?? [];
     $subjectiveAnswers = $_POST['s'] ?? [];
+    $visitedFlags = $_POST['visited'] ?? [];
+    $reviewFlags = $_POST['review'] ?? [];
+    $hasAnswerStatusColumn = table_has_column($pdo, 'test_answers', 'answer_status');
 
     $totalScore = 0.0;
     $totalPossible = 0.0;
@@ -78,10 +82,14 @@ try {
 
         $selectedOptionId = null;
         $subjectiveAnswer = null;
+        $answerStatus = 'not_attempted';
+        $wasVisited = !empty($visitedFlags[$qid]);
+        $isMarkedForReview = !empty($reviewFlags[$qid]);
 
         if ($q['question_type'] === 'mcq') {
             if (isset($selectedMcq[$qid]) && $selectedMcq[$qid] !== '') {
                 $selectedOptionId = (int)$selectedMcq[$qid];
+                $answerStatus = $isMarkedForReview ? 'marked_for_review' : 'answered';
 
                 $stmt = $pdo->prepare(
                     'SELECT is_correct FROM question_options WHERE id = ? AND question_id = ?'
@@ -91,23 +99,44 @@ try {
                 if ($opt && (int)$opt['is_correct'] === 1) {
                     $totalScore += $marks;
                 }
+            } elseif ($wasVisited) {
+                $answerStatus = $isMarkedForReview ? 'marked_for_review' : 'not_answered';
             }
         } else {
             if (isset($subjectiveAnswers[$qid])) {
                 $subjectiveAnswer = trim((string)$subjectiveAnswers[$qid]);
+                if ($subjectiveAnswer !== '') {
+                    $answerStatus = $isMarkedForReview ? 'marked_for_review' : 'answered';
+                } elseif ($wasVisited) {
+                    $answerStatus = $isMarkedForReview ? 'marked_for_review' : 'not_answered';
+                }
             }
         }
 
-        $stmt = $pdo->prepare(
-            'INSERT INTO test_answers (attempt_id, question_id, selected_option_id, subjective_answer)
-             VALUES (?, ?, ?, ?)'
-        );
-        $stmt->execute([
-            $attemptId,
-            $qid,
-            $selectedOptionId ?: null,
-            $subjectiveAnswer,
-        ]);
+        if ($hasAnswerStatusColumn) {
+            $stmt = $pdo->prepare(
+                'INSERT INTO test_answers (attempt_id, question_id, selected_option_id, subjective_answer, answer_status)
+                 VALUES (?, ?, ?, ?, ?)'
+            );
+            $stmt->execute([
+                $attemptId,
+                $qid,
+                $selectedOptionId ?: null,
+                $subjectiveAnswer,
+                $answerStatus,
+            ]);
+        } else {
+            $stmt = $pdo->prepare(
+                'INSERT INTO test_answers (attempt_id, question_id, selected_option_id, subjective_answer)
+                 VALUES (?, ?, ?, ?)'
+            );
+            $stmt->execute([
+                $attemptId,
+                $qid,
+                $selectedOptionId ?: null,
+                $subjectiveAnswer,
+            ]);
+        }
     }
 
     // Convert to percentage if totalPossible > 0
@@ -131,5 +160,5 @@ try {
 // Update skill_progress for this attempt (separate from attempt transaction)
 update_skill_progress_from_test($attemptId);
 
-header('Location: ' . url_for('tests.php'));
+header('Location: ' . url_for('sira_report.php?attempt_id=' . $attemptId));
 exit;

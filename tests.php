@@ -16,13 +16,21 @@ $stmt = $pdo->query(
 $tests = $stmt->fetchAll();
 
 $attempted = [];
+$attemptIds = [];
 if ($authUser && $authUser['role'] === 'student') {
     $stmt = $pdo->prepare(
-        'SELECT test_id FROM test_attempts WHERE student_id = ?'
+        'SELECT test_id, id
+         FROM test_attempts
+         WHERE student_id = ?
+         ORDER BY attempt_date DESC, id DESC'
     );
     $stmt->execute([(int)$authUser['sub']]);
     foreach ($stmt->fetchAll() as $row) {
-        $attempted[(int)$row['test_id']] = true;
+        $testId = (int)$row['test_id'];
+        if (!isset($attemptIds[$testId])) {
+            $attemptIds[$testId] = (int)$row['id'];
+            $attempted[$testId] = true;
+        }
     }
 }
 ?>
@@ -74,7 +82,10 @@ if ($authUser && $authUser['role'] === 'student') {
                         <div class="d-flex justify-content-between align-items-center">
                             <?php if ($authUser && $authUser['role'] === 'student'): ?>
                                 <?php if (isset($attempted[(int)$test['id']])): ?>
-                                    <span class="badge text-bg-secondary">Attempted</span>
+                                    <a href="<?php echo htmlspecialchars(url_for('sira_report.php?attempt_id=' . (int)$attemptIds[(int)$test['id']])); ?>"
+                                       class="btn btn-sm btn-outline-primary">
+                                        View SIRA Report
+                                    </a>
                                 <?php else: ?>
                                     <a href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>"
                                        class="btn btn-sm btn-primary">

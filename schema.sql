@@ -196,6 +196,7 @@ CREATE TABLE test_answers (
   question_id INT NOT NULL,
   selected_option_id INT NULL,
   subjective_answer TEXT NULL,
+  answer_status ENUM('not_attempted','not_answered','answered','marked_for_review') NOT NULL DEFAULT 'not_attempted',
   CONSTRAINT fk_tans_attempt FOREIGN KEY (attempt_id) REFERENCES test_attempts(id) ON DELETE CASCADE,
   CONSTRAINT fk_tans_question FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
   CONSTRAINT fk_tans_option FOREIGN KEY (selected_option_id) REFERENCES question_options(id) ON DELETE SET NULL

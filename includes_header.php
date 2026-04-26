@@ -16,6 +16,7 @@ $pageMeta = [
     'course.php' => ['Course Details | EduquestIQ', 'View course curriculum, lectures, materials, and progress in one place.'],
     'tests.php' => ['Tests & Assessments | EduquestIQ', 'Attempt mapped assessments that update attribute and sub-attribute level skill scores.'],
     'test_attempt.php' => ['Attempt Test | EduquestIQ', 'Complete MCQ and subjective assessments with live scoring and skill impact.'],
+    'sira_report.php' => ['SIRA Report | EduquestIQ', 'View personalized attribute scores, question statuses, and learning recommendations for each assessment.'],
     'learning_paths.php' => ['Learning Paths | EduquestIQ', 'Follow structured course journeys or learn self-paced with saved progress.'],
     'community.php' => ['Community Learning | EduquestIQ', 'Collaborate with peers through posts, comments, and likes in the EduquestIQ community.'],
     'articles.php' => ['Articles | EduquestIQ', 'Explore learning insights, study tips, and curated education resources.'],
