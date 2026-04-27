@@ -150,7 +150,7 @@ $overallBand = sira_band($overallScore);
                         <li class="d-flex justify-content-between align-items-start gap-3">
                             <div>
                                 <div class="fw-bold">Q<?php echo (int)$question['number']; ?></div>
-                                <div class="small text-muted"><?php echo htmlspecialchars(text_preview((string)$question['question_text'], 90, '...')); ?></div>
+                                <div class="small text-muted"><?php echo htmlspecialchars(text_preview(strip_tags((string)$question['question_text']), 90, '...')); ?></div>
                             </div>
                             <div class="text-end">
                                 <div class="eq-question-status status-<?php echo htmlspecialchars((string)$question['status']); ?>">

@@ -7,7 +7,7 @@ require_once __DIR__ . '/includes_fallback.php';
 $pdo = get_pdo();
 
 $stmt = $pdo->query(
-    'SELECT t.id, t.title, t.description, t.total_marks, t.duration_minutes, t.created_at,
+    'SELECT t.id, t.title, t.description, t.start_at, t.end_at, t.total_marks, t.duration_minutes, t.created_at,
             u.name AS teacher_name
      FROM tests t
      LEFT JOIN users u ON t.created_by = u.id
@@ -17,6 +17,7 @@ $tests = $stmt->fetchAll();
 
 $attempted = [];
 $attemptIds = [];
+$nowUtc = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 if ($authUser && $authUser['role'] === 'student') {
     $stmt = $pdo->prepare(
         'SELECT test_id, id
@@ -65,19 +66,40 @@ if ($authUser && $authUser['role'] === 'student') {
 <?php else: ?>
     <div class="row g-3">
         <?php foreach ($tests as $test): ?>
+            <?php
+                $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
+                $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
+                $statusLabel = 'Open';
+                $statusClass = 'text-bg-success';
+                $canAttempt = true;
+                if ($startAt && $nowUtc < $startAt) {
+                    $statusLabel = 'Upcoming';
+                    $statusClass = 'text-bg-warning';
+                    $canAttempt = false;
+                } elseif ($endAt && $nowUtc > $endAt) {
+                    $statusLabel = 'Closed';
+                    $statusClass = 'text-bg-secondary';
+                    $canAttempt = false;
+                }
+            ?>
             <div class="col-md-4">
                 <div class="card h-100">
                     <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><?php echo htmlspecialchars($test['title']); ?></h5>
+                        <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
+                            <h5 class="card-title mb-0"><?php echo htmlspecialchars($test['title']); ?></h5>
+                            <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
+                        </div>
                         <p class="card-text small text-muted flex-grow-1">
-                            <?php echo htmlspecialchars(text_preview((string)$test['description'], 140, '...')); ?>
+                            <?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 140, '...')); ?>
                         </p>
                         <p class="small mb-2">
                             <?php if ($test['teacher_name']): ?>
                                 Teacher: <?php echo htmlspecialchars($test['teacher_name']); ?><br>
                             <?php endif; ?>
                             Marks: <?php echo (int)$test['total_marks']; ?> |
-                            Duration: <?php echo (int)$test['duration_minutes']; ?> min
+                            Duration: <?php echo (int)$test['duration_minutes']; ?> min<br>
+                            Start: <?php echo $startAt ? htmlspecialchars($startAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?><br>
+                            End: <?php echo $endAt ? htmlspecialchars($endAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?>
                         </p>
                         <div class="d-flex justify-content-between align-items-center">
                             <?php if ($authUser && $authUser['role'] === 'student'): ?>
@@ -86,11 +108,13 @@ if ($authUser && $authUser['role'] === 'student') {
                                        class="btn btn-sm btn-outline-primary">
                                         View SIRA Report
                                     </a>
-                                <?php else: ?>
+                                <?php elseif ($canAttempt): ?>
                                     <a href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>"
                                        class="btn btn-sm btn-primary">
                                         Attempt
                                     </a>
+                                <?php else: ?>
+                                    <button class="btn btn-sm btn-outline-secondary" disabled>Not available</button>
                                 <?php endif; ?>
                             <?php else: ?>
                                 <span class="text-muted small">Login as a student to attempt.</span>

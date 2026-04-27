@@ -15,7 +15,7 @@ if ($testId <= 0) {
 $pdo = get_pdo();
 
 $stmt = $pdo->prepare(
-    'SELECT id, title, description, total_marks, duration_minutes
+    'SELECT id, title, description, instruction, test_year, start_at, end_at, total_marks, duration_minutes
      FROM tests
      WHERE id = ?'
 );
@@ -26,6 +26,14 @@ if (!$test) {
     header('Location: ' . url_for('tests.php'));
     exit;
 }
+
+$nowUtc = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+$startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
+$endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
+$isUpcoming = $startAt && $nowUtc < $startAt;
+$isClosed = $endAt && $nowUtc > $endAt;
+$secondsUntilStart = $isUpcoming ? max(0, $startAt->getTimestamp() - $nowUtc->getTimestamp()) : 0;
+$secondsUntilEnd = $endAt ? max(0, $endAt->getTimestamp() - $nowUtc->getTimestamp()) : 0;
 
 $stmt = $pdo->prepare(
     'SELECT tq.question_id, tq.marks, q.question_text, q.question_type
@@ -72,7 +80,8 @@ if ($questionIds) {
         align-items: start;
     }
     .eq-attempt-sidebar,
-    .eq-attempt-main {
+    .eq-attempt-main,
+    .eq-backend-panel {
         background: #fff;
         border: 1px solid rgba(47, 59, 120, 0.08);
         border-radius: 22px;
@@ -268,13 +277,62 @@ if ($questionIds) {
     <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-link">&larr; Back to tests</a>
 </div>
 
-<div class="eq-attempt-shell" id="sira-attempt-app">
-    <aside class="eq-attempt-sidebar">
-        <div class="eq-time-box mb-3">
-            <small>Time Left</small>
-            <strong id="time-left"><?php echo (int)$test['duration_minutes']; ?>:00</strong>
+<div class="eq-backend-panel mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="badge text-bg-primary mb-2">SIRA Test</div>
+                <h2 class="mb-1"><?php echo htmlspecialchars($test['title']); ?></h2>
+                <div class="eq-attempt-meta">
+                    Year: <?php echo htmlspecialchars((string)($test['test_year'] ?? '')); ?> |
+                    Marks: <?php echo (int)$test['total_marks']; ?> |
+                    Duration: <?php echo (int)$test['duration_minutes']; ?> minutes
+                </div>
+            </div>
+            <div class="text-end">
+                <?php if ($isUpcoming): ?>
+                    <div class="eq-time-box">
+                        <small>Starts in</small>
+                        <strong id="pre-start-countdown"></strong>
+                    </div>
+                <?php elseif ($isClosed): ?>
+                    <div class="eq-time-box">
+                        <small>Test closed</small>
+                        <strong>Ended</strong>
+                    </div>
+                <?php else: ?>
+                    <div class="eq-time-box">
+                        <small>Time Left</small>
+                        <strong id="time-left"><?php echo (int)$test['duration_minutes']; ?>:00</strong>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
+    </div>
+</div>
 
+<div class="eq-backend-panel mb-3" id="instruction-screen">
+    <div class="card-body">
+        <h4 class="mb-3">Test Instructions</h4>
+        <div class="mb-3"><?php echo (string)($test['instruction'] ?? ''); ?></div>
+        <?php if ($isUpcoming): ?>
+            <div class="alert alert-info mb-3">This test has not started yet. You can begin after the scheduled start time.</div>
+            <div class="mb-3">
+                <strong>Start countdown:</strong>
+                <span id="start-countdown"></span>
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-start-test" disabled>Start Test</button>
+        <?php elseif ($isClosed): ?>
+            <div class="alert alert-danger mb-0">This test has already ended and can no longer be attempted.</div>
+        <?php else: ?>
+            <div class="alert alert-primary mb-3">Read the instructions and then start the test when you are ready.</div>
+            <button type="button" class="btn btn-primary" id="btn-start-test">Start Test</button>
+        <?php endif; ?>
+    </div>
+</div>
+
+<div class="eq-attempt-shell <?php echo ($isUpcoming || $isClosed) ? 'd-none' : ''; ?>" id="sira-attempt-app">
+    <aside class="eq-attempt-sidebar">
         <div class="eq-page-head mb-3">
             <h2 class="mb-1"><?php echo htmlspecialchars($test['title']); ?></h2>
             <div class="eq-attempt-meta">SIRA • <?php echo (int)$test['total_marks']; ?> marks</div>
@@ -310,7 +368,7 @@ if ($questionIds) {
             <div>
                 <h2><?php echo htmlspecialchars($test['title']); ?></h2>
                 <div class="eq-attempt-meta">
-                    <?php echo nl2br(htmlspecialchars((string)$test['description'])); ?>
+                    <?php echo (string)($test['description'] ?? ''); ?>
                 </div>
             </div>
             <div class="text-end">
@@ -325,10 +383,7 @@ if ($questionIds) {
 
             <div class="eq-question-stage">
                 <?php foreach ($questions as $idx => $q): ?>
-                    <?php
-                        $qid = (int)$q['question_id'];
-                        $isMcq = $q['question_type'] === 'mcq';
-                    ?>
+                    <?php $qid = (int)$q['question_id']; ?>
                     <article class="eq-question-card <?php echo $idx === 0 ? 'is-active' : ''; ?>"
                              data-question-card
                              data-question-id="<?php echo $qid; ?>"
@@ -342,13 +397,13 @@ if ($questionIds) {
                                     <span class="badge text-bg-primary"><?php echo (int)$q['marks']; ?> marks</span>
                                     <span class="badge text-bg-secondary"><?php echo htmlspecialchars(strtoupper((string)$q['question_type'])); ?></span>
                                 </div>
-                                <h5><?php echo nl2br(htmlspecialchars((string)$q['question_text'])); ?></h5>
+                                <h5><?php echo (string)$q['question_text']; ?></h5>
                             </div>
                             <span class="badge text-bg-info">SIRA</span>
                         </div>
 
                         <div class="eq-question-body">
-                            <?php if ($isMcq): ?>
+                            <?php if ($q['question_type'] === 'mcq'): ?>
                                 <?php if (!empty($optionsByQuestion[$qid])): ?>
                                     <?php foreach ($optionsByQuestion[$qid] as $opt): ?>
                                         <div class="form-check">
@@ -359,7 +414,7 @@ if ($questionIds) {
                                                    value="<?php echo (int)$opt['id']; ?>"
                                                    data-answer-input>
                                             <label class="form-check-label" for="q<?php echo $qid; ?>_opt<?php echo (int)$opt['id']; ?>">
-                                                <?php echo htmlspecialchars($opt['option_text']); ?>
+                                                <?php echo (string)$opt['option_text']; ?>
                                             </label>
                                         </div>
                                     <?php endforeach; ?>
@@ -394,6 +449,9 @@ if ($questionIds) {
 <script>
 (function () {
     const form = document.getElementById('sira-attempt-form');
+    const app = document.getElementById('sira-attempt-app');
+    const instructionScreen = document.getElementById('instruction-screen');
+    const startButton = document.getElementById('btn-start-test');
     const cards = Array.from(document.querySelectorAll('[data-question-card]'));
     const navButtons = Array.from(document.querySelectorAll('#question-nav [data-jump-index]'));
     const answeredEl = document.getElementById('count-answered');
@@ -402,15 +460,21 @@ if ($questionIds) {
     const notAttemptedEl = document.getElementById('count-not-attempted');
     const currentQuestionEl = document.getElementById('current-question-number');
     const timeLeftEl = document.getElementById('time-left');
+    const startCountdownEl = document.getElementById('start-countdown');
+    const preStartCountdownEl = document.getElementById('pre-start-countdown');
     const btnPrev = document.getElementById('btn-prev');
     const btnNext = document.getElementById('btn-next');
     const btnClear = document.getElementById('btn-clear');
     const btnReview = document.getElementById('btn-review');
     const btnFinish = document.getElementById('btn-finish');
     const durationSeconds = <?php echo (int)$test['duration_minutes'] * 60; ?>;
-    const startedAt = Date.now();
+    const startDelaySeconds = <?php echo (int)$secondsUntilStart; ?>;
+    const endEpochMs = <?php echo $endAt ? ((int)$endAt->getTimestamp() * 1000) : 0; ?>;
     let currentIndex = 0;
     let timerId = null;
+    let startTimerId = null;
+    let startedAt = null;
+    let attemptLimitSeconds = durationSeconds;
 
     function getCard(index) {
         return cards[index];
@@ -534,14 +598,72 @@ if ($questionIds) {
 
     function updateTimer() {
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-        const remaining = Math.max(durationSeconds - elapsed, 0);
+        const remaining = Math.max(attemptLimitSeconds - elapsed, 0);
         const mins = Math.floor(remaining / 60);
         const secs = remaining % 60;
-        timeLeftEl.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        if (timeLeftEl) {
+            timeLeftEl.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        }
         if (remaining <= 0) {
             clearInterval(timerId);
             finishTest(true);
         }
+    }
+
+    function formatDuration(totalSeconds) {
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const mins = Math.floor((totalSeconds % 3600) / 60);
+        const secs = totalSeconds % 60;
+        return days + 'd ' + hours + 'h ' + mins + 'm ' + secs + 's';
+    }
+
+    function updateStartCountdown() {
+        if (!startCountdownEl && !preStartCountdownEl) {
+            return;
+        }
+        if (startDelaySeconds <= 0) {
+            if (startCountdownEl) startCountdownEl.textContent = '0d 0h 0m 0s';
+            if (preStartCountdownEl) preStartCountdownEl.textContent = 'Ready';
+            if (startButton) startButton.disabled = false;
+            clearInterval(startTimerId);
+            return;
+        }
+
+        const elapsed = Math.floor((Date.now() - pageLoadedAt) / 1000);
+        const remaining = Math.max(startDelaySeconds - elapsed, 0);
+        const label = formatDuration(remaining);
+        if (startCountdownEl) startCountdownEl.textContent = label;
+        if (preStartCountdownEl) preStartCountdownEl.textContent = label;
+        if (remaining <= 0) {
+            if (startButton) startButton.disabled = false;
+            clearInterval(startTimerId);
+        }
+    }
+
+    function startAttempt() {
+        const now = Date.now();
+        const remainingToEnd = endEpochMs > 0 ? Math.max(0, Math.floor((endEpochMs - now) / 1000)) : durationSeconds;
+        attemptLimitSeconds = Math.min(durationSeconds, remainingToEnd || durationSeconds);
+        startedAt = Date.now();
+        instructionScreen.classList.add('d-none');
+        app.classList.remove('d-none');
+        setVisited(0);
+        showQuestion(0);
+        updateTimer();
+        timerId = window.setInterval(updateTimer, 1000);
+    }
+
+    const pageLoadedAt = Date.now();
+    if (startButton) {
+        if (startDelaySeconds > 0) {
+            startButton.disabled = true;
+            updateStartCountdown();
+            startTimerId = window.setInterval(updateStartCountdown, 1000);
+        } else {
+            startButton.disabled = false;
+        }
+        startButton.addEventListener('click', startAttempt);
     }
 
     navButtons.forEach(function (button) {
@@ -571,9 +693,10 @@ if ($questionIds) {
         finishTest(false);
     });
 
-    showQuestion(0);
-    updateTimer();
-    timerId = window.setInterval(updateTimer, 1000);
+    if (!<?php echo $isUpcoming ? 'true' : 'false'; ?> && !<?php echo $isClosed ? 'true' : 'false'; ?>) {
+        showQuestion(0);
+        renderCounts();
+    }
 })();
 </script>
 

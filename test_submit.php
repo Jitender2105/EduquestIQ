@@ -33,7 +33,7 @@ try {
 
     // Ensure test exists
     $stmt = $pdo->prepare(
-        'SELECT id, total_marks FROM tests WHERE id = ?'
+        'SELECT id, total_marks, start_at, end_at FROM tests WHERE id = ?'
     );
     $stmt->execute([$testId]);
     $test = $stmt->fetch();
@@ -41,6 +41,24 @@ try {
         $pdo->rollBack();
         header('Location: ' . url_for('tests.php'));
         exit;
+    }
+
+    $nowUtc = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+    if (!empty($test['start_at'])) {
+        $startAt = new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC'));
+        if ($nowUtc < $startAt) {
+            $pdo->rollBack();
+            header('Location: ' . url_for('test_attempt.php?id=' . $testId));
+            exit;
+        }
+    }
+    if (!empty($test['end_at'])) {
+        $endAt = new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC'));
+        if ($nowUtc > $endAt) {
+            $pdo->rollBack();
+            header('Location: ' . url_for('tests.php'));
+            exit;
+        }
     }
 
     // Load questions in this test
