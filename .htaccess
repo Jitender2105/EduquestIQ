@@ -14,12 +14,6 @@ DirectoryIndex index.php
     RewriteCond %{HTTP_HOST} ^backend\. [NC]
     RewriteRule ^$ backend/index.php [L]
 
-    # Block backend routes on non-backend hosts (except localhost/dev)
-    RewriteCond %{REQUEST_URI} ^/backend/ [NC]
-    RewriteCond %{HTTP_HOST} !^backend\. [NC]
-    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:[0-9]+)?$ [NC]
-    RewriteRule ^ - [F,L]
-
     # Resolve extensionless URL to matching PHP file.
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d

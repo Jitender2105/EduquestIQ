@@ -11,16 +11,6 @@ function backend_user(): array
         return $user;
     }
 
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    $isLocal = in_array($host, ['localhost', '127.0.0.1', '::1'], true) || str_starts_with($host, 'localhost:') || str_starts_with($host, '127.0.0.1:');
-    $isBackendSubdomain = str_starts_with($host, 'backend.');
-
-    if (!$isLocal && !$isBackendSubdomain) {
-        http_response_code(403);
-        echo 'Backend is available only on backend subdomain.';
-        exit;
-    }
-
     $user = require_auth(['teacher', 'school_admin']);
     return $user;
 }
