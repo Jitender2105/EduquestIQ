@@ -545,7 +545,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
     </div>
 </div>
 
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<?php require __DIR__ . '/richtext.php'; ?>
 <script>
 (function () {
     const pageData = {
@@ -569,33 +569,10 @@ require_once dirname(__DIR__) . '/includes_header.php';
         subAttributeMap[attrId].push(sub);
     });
 
-    function tinyConfig(el) {
-        return {
-            target: el,
-            menubar: false,
-            branding: false,
-            height: 180,
-            plugins: 'link lists code table',
-            toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat | code',
-            setup: function (editor) {
-                editor.on('change keyup undo redo init', function () {
-                    editor.save();
-                });
-            }
-        };
-    }
-
     function initEditors(root) {
-        if (!window.tinymce) {
-            return;
+        if (window.EQRichText) {
+            window.EQRichText.init(root);
         }
-        root.querySelectorAll('textarea[data-richtext]').forEach(function (textarea) {
-            if (textarea.dataset.editorReady === '1') {
-                return;
-            }
-            tinymce.init(tinyConfig(textarea));
-            textarea.dataset.editorReady = '1';
-        });
     }
 
     function optionRowHtml(questionIndex, optionIndex, option = {}) {
@@ -758,8 +735,8 @@ require_once dirname(__DIR__) . '/includes_header.php';
     btnAddBottom.addEventListener('click', function () { addQuestion(); });
 
     document.getElementById('test-builder-form').addEventListener('submit', function () {
-        if (window.tinymce) {
-            tinymce.triggerSave();
+        if (window.EQRichText) {
+            window.EQRichText.init(document);
         }
     });
 
