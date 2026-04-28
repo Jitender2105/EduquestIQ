@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 $user = backend_user();
 $pdo = get_pdo();
+backend_require_admin($user);
 
 $errors = [];
 $success = null;

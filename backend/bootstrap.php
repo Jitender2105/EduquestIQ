@@ -11,20 +11,25 @@ function backend_user(): array
         return $user;
     }
 
-    $user = require_auth(['teacher', 'school_admin']);
+    $user = require_auth(['content_admin', 'super_admin']);
     return $user;
 }
 
 function backend_is_admin(array $user): bool
 {
-    return ($user['role'] ?? '') === 'school_admin';
+    return in_array(($user['role'] ?? ''), ['content_admin', 'super_admin'], true);
+}
+
+function backend_is_super_admin(array $user): bool
+{
+    return ($user['role'] ?? '') === 'super_admin';
 }
 
 function backend_require_admin(array $user): void
 {
     if (!backend_is_admin($user)) {
         http_response_code(403);
-        echo 'Forbidden. School admin only.';
+        echo 'Forbidden. Content admin only.';
         exit;
     }
 }

@@ -10,7 +10,7 @@ $schema = backend_schema_ready($pdo);
 ?>
 <div class="eq-page-head">
     <h2>Backend Console</h2>
-    <p class="subtitle">Entity-specific administration pages. Access restricted to backend subdomain and authorized roles.</p>
+    <p class="subtitle">Entity-specific administration pages for content admins and super admins.</p>
 </div>
 
 <?php require __DIR__ . '/nav.php'; ?>

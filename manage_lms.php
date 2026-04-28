@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_fallback.php';
 
-$user = require_auth(['teacher', 'school_admin']);
+$user = require_auth(['content_admin', 'super_admin']);
 
 $modules = [
     ['title' => 'Backend Overview', 'desc' => 'Open the modular LMS backend home.', 'link' => url_for('backend/index.php')],
@@ -28,7 +28,7 @@ $modules = [
 <div class="eq-page-head d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div>
         <h2 class="mb-0">LMS Management Console</h2>
-        <div class="subtitle">Each backend module now lives on its own URL under the backend subdomain.</div>
+        <div class="subtitle">Each backend module now lives on its own URL for content admin and super admin use.</div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('backend/index.php')); ?>">Open Backend Overview</a>
@@ -36,13 +36,13 @@ $modules = [
     </div>
 </div>
 
-<?php if ($user['role'] === 'school_admin'): ?>
+<?php if ($user['role'] === 'super_admin'): ?>
     <div class="alert alert-info">
-        You are signed in as a school admin. Use the separate backend URLs below to manage each module independently.
+        You are signed in as super admin. Use the separate backend URLs below to manage each module independently.
     </div>
 <?php else: ?>
     <div class="alert alert-secondary">
-        Teacher access is limited to modules you are allowed to manage.
+        Content admin access is limited to the backend modules you are allowed to manage.
     </div>
 <?php endif; ?>
 

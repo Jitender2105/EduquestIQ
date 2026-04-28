@@ -5,7 +5,7 @@ require_once __DIR__ . '/includes_auth.php';
 require_once __DIR__ . '/includes_csrf.php';
 require_once __DIR__ . '/includes_files.php';
 
-$user = require_auth(['teacher', 'school_admin']);
+$user = require_auth(['content_admin', 'super_admin']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: ' . url_for('manage_lms.php'));
@@ -30,14 +30,7 @@ if ($courseId <= 0 || $title === '' || !in_array($materialType, ['pdf', 'doc', '
     exit;
 }
 
-if ($user['role'] === 'teacher') {
-    $stmt = $pdo->prepare('SELECT id FROM courses WHERE id = ? AND teacher_id = ?');
-    $stmt->execute([$courseId, (int)$user['sub']]);
-} else {
-    $stmt = $pdo->prepare('SELECT id FROM courses WHERE id = ?');
-    $stmt->execute([$courseId]);
-}
-if (!$stmt->fetch()) {
+if (!in_array($user['role'], ['content_admin', 'super_admin'], true)) {
     header('Location: ' . url_for('manage_lms.php?msg=material_course_forbidden'));
     exit;
 }
@@ -68,4 +61,3 @@ try {
     header('Location: ' . url_for('manage_lms.php?msg=material_upload_failed'));
     exit;
 }
-

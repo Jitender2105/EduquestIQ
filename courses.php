@@ -35,7 +35,7 @@ if ($authUser && $authUser['role'] === 'student') {
         <h2>Courses</h2>
         <p class="subtitle">Browse skill-mapped courses, enroll as a student, and continue learning at your own pace.</p>
     </div>
-    <?php if ($authUser && in_array($authUser['role'], ['teacher', 'school_admin'], true)): ?>
+    <?php if ($authUser && in_array($authUser['role'], ['content_admin', 'super_admin'], true)): ?>
         <a href="<?php echo htmlspecialchars(url_for('manage_lms.php')); ?>" class="btn btn-primary btn-sm">
             Manage Courses
         </a>
@@ -47,7 +47,7 @@ if ($authUser && $authUser['role'] === 'student') {
     render_static_fallback([
         'eyebrow' => 'Courses Library',
         'title' => 'Course catalog is being prepared',
-        'description' => 'Your live course list will appear here once teachers or admins publish course records.',
+        'description' => 'Your live course list will appear here once content admins or super admins publish course records.',
         'points' => [
             'Course cards will show title, teacher, attribute, and enrollment actions.',
             'Students can enroll directly and continue from dashboard progress.',

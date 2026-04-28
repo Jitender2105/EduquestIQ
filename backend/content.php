@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string)($_POST['action'] ?? '');
         try {
             if ($action === 'video') {
+                backend_require_admin($user);
                 $stmt = $pdo->prepare('INSERT INTO video_lectures (course_id, title, video_url, duration, sequence_order) VALUES (?, ?, ?, ?, ?)');
                 $stmt->execute([(int)$_POST['course_id'], trim((string)$_POST['title']), trim((string)$_POST['video_url']) ?: null, (int)$_POST['duration'], (int)$_POST['sequence_order']]);
                 $videoId = (int)$pdo->lastInsertId();
@@ -22,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$videoId, trim((string)$_POST['language']) ?: 'en', (string)$_POST['visibility'], trim((string)$_POST['version_label']) ?: null, trim((string)$_POST['license_type']) ?: null, trim((string)$_POST['tags_json']) ?: null]);
                 $success = 'Video + metadata added.';
             } elseif ($action === 'material') {
+                backend_require_admin($user);
                 $stmt = $pdo->prepare('INSERT INTO study_materials (course_id, title, file_path, material_type, uploaded_at) VALUES (?, ?, ?, ?, NOW())');
                 $stmt->execute([(int)$_POST['course_id'], trim((string)$_POST['title']), trim((string)$_POST['file_path']), (string)$_POST['material_type']]);
                 $materialId = (int)$pdo->lastInsertId();
@@ -45,6 +47,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
 ?>
 <div class="eq-page-head"><h2>Content Backend</h2><p class="subtitle">Video tutorials, study materials, and article resources with content metadata.</p></div>
 <?php require __DIR__ . '/nav.php'; ?>
+<?php require __DIR__ . '/richtext.php'; ?>
 <?php if ($success): ?><div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
 <?php if ($errors): ?><div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?php echo htmlspecialchars($e); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 <div class="row g-3">

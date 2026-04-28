@@ -32,7 +32,7 @@ require_once __DIR__ . '/includes_header.php';
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card card-dashboard mb-3">
+            <div class="card card-dashboard mb-3" id="achievements-panel">
                 <div class="card-body">
                     <h6 class="card-title mb-2">Highlights</h6>
                     <ul class="list-unstyled small mb-0" id="highlights-list">
@@ -53,7 +53,7 @@ require_once __DIR__ . '/includes_header.php';
 
     <div class="row g-3 mt-3">
         <div class="col-md-6">
-            <div class="card card-dashboard h-100">
+            <div class="card card-dashboard h-100" id="community-panel">
                 <div class="card-body">
                     <h6 class="card-title mb-2" id="secondary-chart-title">Progress</h6>
                     <canvas id="secondaryChart" height="140"></canvas>
@@ -84,6 +84,13 @@ require_once __DIR__ . '/includes_header.php';
             return String(text == null ? '' : text);
         }
         function renderCharts(data) {
+            (data.hideSections || []).forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.display = 'none';
+                }
+            });
+
             document.getElementById('primary-chart-title').textContent = data.primaryChartTitle || 'Overview';
             document.getElementById('secondary-chart-title').textContent = data.secondaryChartTitle || 'Progress';
 
@@ -182,8 +189,21 @@ require_once __DIR__ . '/includes_header.php';
                         if (typeof item === 'string') {
                             li.textContent = item;
                         } else {
-                            li.textContent = esc(item.primary || item.title || '') +
-                                (item.secondary ? ' - ' + esc(item.secondary) : '');
+                            if (item.link) {
+                                const anchor = document.createElement('a');
+                                anchor.href = item.link;
+                                anchor.textContent = esc(item.primary || item.title || '');
+                                anchor.className = 'text-decoration-none';
+                                if (item.link_label) {
+                                    anchor.title = item.link_label;
+                                }
+                                li.appendChild(anchor);
+                            } else {
+                                li.textContent = esc(item.primary || item.title || '');
+                            }
+                            if (item.secondary) {
+                                li.appendChild(document.createTextNode(' - ' + esc(item.secondary)));
+                            }
                         }
                         ul.appendChild(li);
                     });

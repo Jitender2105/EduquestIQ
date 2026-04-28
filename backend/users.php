@@ -14,9 +14,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Invalid CSRF token.';
     } else {
         try {
-            $stmt = $pdo->prepare('UPDATE users SET status = ?, school_id = ? WHERE id = ?');
+            $role = (string)($_POST['role'] ?? '');
+            $sql = 'UPDATE users SET status = ?, school_id = ?';
+            $params = [(string)$_POST['status'], (int)($_POST['school_id'] ?? 0) > 0 ? (int)$_POST['school_id'] : null];
+            if (backend_is_super_admin($user) && in_array($role, ['student', 'parent', 'teacher', 'school_admin', 'content_admin', 'super_admin'], true)) {
+                $sql .= ', role = ?';
+                $params[] = $role;
+            }
+            $sql .= ' WHERE id = ?';
+            $params[] = (int)$_POST['user_id'];
+            $stmt = $pdo->prepare($sql);
             $schoolId = (int)($_POST['school_id'] ?? 0);
-            $stmt->execute([(string)$_POST['status'], $schoolId > 0 ? $schoolId : null, (int)$_POST['user_id']]);
+            $stmt->execute($params);
             $success = 'User updated.';
         } catch (Throwable $e) {
             $errors[] = 'Update failed: ' . $e->getMessage();
@@ -34,7 +43,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
 <?php if ($success): ?><div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div><?php endif; ?>
 <?php if ($errors): ?><div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $e): ?><li><?php echo htmlspecialchars($e); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 <div class="row g-3">
-<div class="col-md-4"><form method="post" class="card p-3"><?php echo csrf_field(); ?><h6>Update User</h6><select class="form-select mb-2" name="user_id" required><?php foreach ($users as $u): ?><option value="<?php echo (int)$u['id']; ?>">#<?php echo (int)$u['id']; ?> <?php echo htmlspecialchars($u['name'].' ('.$u['role'].')'); ?></option><?php endforeach; ?></select><select class="form-select mb-2" name="status"><option value="active">active</option><option value="inactive">inactive</option></select><select class="form-select mb-2" name="school_id"><option value="">clear school</option><?php foreach ($schools as $s): ?><option value="<?php echo (int)$s['id']; ?>"><?php echo htmlspecialchars($s['name']); ?></option><?php endforeach; ?></select><button class="btn btn-primary btn-sm">Update</button></form></div>
+<div class="col-md-4"><form method="post" class="card p-3"><?php echo csrf_field(); ?><h6>Update User</h6><select class="form-select mb-2" name="user_id" required><?php foreach ($users as $u): ?><option value="<?php echo (int)$u['id']; ?>">#<?php echo (int)$u['id']; ?> <?php echo htmlspecialchars($u['name'].' ('.$u['role'].')'); ?></option><?php endforeach; ?></select><?php if (backend_is_super_admin($user)): ?><select class="form-select mb-2" name="role"><option value="">keep role</option><option value="student">student</option><option value="parent">parent</option><option value="teacher">teacher</option><option value="school_admin">school_admin</option><option value="content_admin">content_admin</option><option value="super_admin">super_admin</option></select><?php endif; ?><select class="form-select mb-2" name="status"><option value="active">active</option><option value="inactive">inactive</option></select><select class="form-select mb-2" name="school_id"><option value="">clear school</option><?php foreach ($schools as $s): ?><option value="<?php echo (int)$s['id']; ?>"><?php echo htmlspecialchars($s['name']); ?></option><?php endforeach; ?></select><button class="btn btn-primary btn-sm">Update</button></form></div>
 <div class="col-md-8"><div class="card p-3"><h6>Recent Users</h6><div class="table-responsive"><table class="table table-sm"><thead><tr><th>ID</th><th>User</th><th>Role</th><th>School</th><th>Status</th><th>Profile</th></tr></thead><tbody><?php foreach ($users as $u): ?><tr><td><?php echo (int)$u['id']; ?></td><td><?php echo htmlspecialchars($u['name'].'<'.$u['email'].'>'); ?></td><td><?php echo htmlspecialchars($u['role']); ?></td><td><?php echo htmlspecialchars((string)$u['school_name']); ?></td><td><?php echo htmlspecialchars($u['status']); ?></td><td><code><?php echo htmlspecialchars(text_preview((string)($u['role_profile'] ?? ''), 70, '...')); ?></code></td></tr><?php endforeach; ?></tbody></table></div></div></div>
 </div>
 <?php require_once dirname(__DIR__) . '/includes_footer.php';

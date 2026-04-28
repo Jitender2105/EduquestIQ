@@ -54,7 +54,7 @@ CREATE TABLE users (
   name VARCHAR(100) NOT NULL,
   email VARCHAR(150) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
-  role ENUM('student','parent','teacher','school_admin') NOT NULL,
+  role ENUM('student','parent','teacher','school_admin','content_admin','super_admin') NOT NULL,
   school_id INT NULL,
   age TINYINT UNSIGNED NULL,
   grade VARCHAR(20) NULL,

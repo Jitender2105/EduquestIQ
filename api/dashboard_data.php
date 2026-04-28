@@ -215,11 +215,6 @@ switch ($user['role']) {
                     return ['primary' => $row['title'], 'secondary' => $row['description']];
                 }, $response['recentAchievements']),
             ],
-            [
-                'title' => 'Learning mode',
-                'type' => 'text',
-                'content' => 'You can follow structured learning paths or continue self-paced and resume anytime. Achievements unlocked: ' . $achievementCount,
-            ],
         ];
 
         json_result($response);
@@ -231,7 +226,7 @@ switch ($user['role']) {
 
         if (table_exists($pdo, 'parent_student_links')) {
             $stmt = $pdo->prepare(
-                'SELECT u.id, u.name
+                'SELECT u.id, u.name, u.grade
                  FROM parent_student_links psl
                  JOIN users u ON u.id = psl.student_id
                  WHERE psl.parent_id = ?
@@ -242,22 +237,13 @@ switch ($user['role']) {
             $child = $stmt->fetch() ?: null;
         }
 
-        if (!$child) {
-            $stmt = $pdo->prepare(
-                'SELECT id, name
-                 FROM users
-                 WHERE role = "student" AND school_id = ?
-                 ORDER BY id ASC
-                 LIMIT 1'
-            );
-            $stmt->execute([$user['school_id'] ?? null]);
-            $child = $stmt->fetch() ?: null;
-        }
-
         $childId = $child ? (int)$child['id'] : 0;
-
         $attrLabels = [];
         $attrScores = [];
+        $attemptRows = [];
+        $avgScore = 0.0;
+        $attemptCount = 0;
+
         if ($childId > 0) {
             $stmt = $pdo->prepare(
                 'SELECT a.name, AVG(sp.score) AS score
@@ -272,11 +258,7 @@ switch ($user['role']) {
                 $attrLabels[] = $row['name'];
                 $attrScores[] = (float)$row['score'];
             }
-        }
 
-        $avgScore = 0.0;
-        $attemptCount = 0;
-        if ($childId > 0) {
             $stmt = $pdo->prepare('SELECT COALESCE(AVG(score),0), COUNT(*) FROM test_attempts WHERE student_id = ?');
             $stmt->execute([$childId]);
             $vals = $stmt->fetch(PDO::FETCH_NUM);
@@ -284,51 +266,22 @@ switch ($user['role']) {
                 $avgScore = (float)$vals[0];
                 $attemptCount = (int)$vals[1];
             }
-        }
 
-        $attendancePresent = 0;
-        $attendanceAbsent = 0;
-        $attendanceLate = 0;
-        if ($childId > 0) {
             $stmt = $pdo->prepare(
-                'SELECT
-                    COALESCE(SUM(status = "present"), 0) AS present_days,
-                    COALESCE(SUM(status = "absent"), 0) AS absent_days,
-                    COALESCE(SUM(status = "late"), 0) AS late_days
-                 FROM attendance
-                 WHERE student_id = ?'
+                'SELECT ta.id, t.title, ta.score, ta.attempt_date
+                 FROM test_attempts ta
+                 JOIN tests t ON t.id = ta.test_id
+                 WHERE ta.student_id = ?
+                 ORDER BY ta.attempt_date DESC
+                 LIMIT 10'
             );
             $stmt->execute([$childId]);
-            $row = $stmt->fetch();
-            if ($row) {
-                $attendancePresent = (int)$row['present_days'];
-                $attendanceAbsent = (int)$row['absent_days'];
-                $attendanceLate = (int)$row['late_days'];
-            }
-        }
-
-        $feedbackItems = [];
-        if ($childId > 0 && table_exists($pdo, 'teacher_feedback')) {
-            $stmt = $pdo->prepare(
-                'SELECT tf.feedback_text, tf.created_at, u.name AS teacher_name
-                 FROM teacher_feedback tf
-                 JOIN users u ON u.id = tf.teacher_id
-                 WHERE tf.student_id = ?
-                 ORDER BY tf.created_at DESC
-                 LIMIT 5'
-            );
-            $stmt->execute([$childId]);
-            foreach ($stmt->fetchAll() as $row) {
-                $feedbackItems[] = [
-                    'primary' => $row['teacher_name'],
-                    'secondary' => $row['feedback_text'] . ' (' . $row['created_at'] . ')',
-                ];
-            }
+            $attemptRows = $stmt->fetchAll();
         }
 
         $response = base_response();
         $response['primaryChartTitle'] = 'Child skill trend graph';
-        $response['secondaryChartTitle'] = 'Attendance summary';
+        $response['secondaryChartTitle'] = 'Test performance';
         $response['primaryChart'] = [
             'type' => 'bar',
             'data' => [
@@ -341,56 +294,57 @@ switch ($user['role']) {
             ],
         ];
         $response['secondaryChart'] = [
-            'type' => 'doughnut',
+            'type' => 'bar',
             'data' => [
-                'labels' => ['Present', 'Absent', 'Late'],
+                'labels' => array_map(static fn (array $row): string => (string)$row['title'], $attemptRows),
                 'datasets' => [[
-                    'data' => [$attendancePresent, $attendanceAbsent, $attendanceLate],
-                    'backgroundColor' => ['#4caf50', '#f44336', '#ff9800'],
+                    'label' => 'Test score',
+                    'data' => array_map(static fn (array $row): float => (float)$row['score'], $attemptRows),
+                    'backgroundColor' => 'rgba(33, 150, 243, 0.65)',
                 ]],
             ],
         ];
         $response['highlights'] = [
             $child ? ('Child: ' . $child['name']) : 'No child linked yet.',
-            'Performance summary: Avg test score ' . number_format($avgScore, 1),
-            'Attendance summary: Present ' . $attendancePresent . ', Absent ' . $attendanceAbsent . ', Late ' . $attendanceLate,
-            'Teacher feedback entries: ' . count($feedbackItems),
+            'Average test score: ' . number_format($avgScore, 1),
+            'Tests attempted: ' . $attemptCount,
+            'Attribute coverage: ' . count($attrLabels) . ' areas',
         ];
-        $response['recentAchievements'] = $childId ? load_recent_achievements($pdo, $childId) : [];
-        $response['communityFeed'] = load_community($pdo);
+        $response['recentAchievements'] = [];
+        $response['communityFeed'] = [];
         $response['metrics'] = [
             ['label' => 'Child', 'value' => $child ? $child['name'] : 'Not linked'],
             ['label' => 'Avg Test Score', 'value' => number_format($avgScore, 1)],
             ['label' => 'Tests Attempted', 'value' => $attemptCount],
-            ['label' => 'Attendance Days', 'value' => $attendancePresent + $attendanceAbsent + $attendanceLate],
+            ['label' => 'Attributes', 'value' => count($attrLabels)],
         ];
+        $progressItems = [];
+        foreach ($attrLabels as $index => $label) {
+            $progressItems[] = [
+                'primary' => $label,
+                'secondary' => number_format((float)($attrScores[$index] ?? 0), 1),
+            ];
+        }
         $response['widgets'] = [
             [
-                'title' => 'Performance summary',
+                'title' => 'Progress summary',
                 'type' => 'list',
-                'emptyText' => 'No performance data.',
-                'items' => $childId ? [
-                    ['primary' => 'Average test score', 'secondary' => number_format($avgScore, 1)],
-                    ['primary' => 'Test attempts', 'secondary' => (string)$attemptCount],
-                ] : [],
+                'emptyText' => 'No progress data.',
+                'items' => $progressItems,
             ],
             [
-                'title' => 'Attendance summary',
+                'title' => 'Recent tests',
                 'type' => 'list',
-                'emptyText' => 'No attendance records.',
-                'items' => $childId ? [
-                    ['primary' => 'Present', 'secondary' => (string)$attendancePresent],
-                    ['primary' => 'Absent', 'secondary' => (string)$attendanceAbsent],
-                    ['primary' => 'Late', 'secondary' => (string)$attendanceLate],
-                ] : [],
-            ],
-            [
-                'title' => 'Teacher feedback',
-                'type' => 'list',
-                'emptyText' => 'No teacher feedback yet.',
-                'items' => $feedbackItems,
+                'emptyText' => 'No test attempts yet.',
+                'items' => array_map(static function (array $row): array {
+                    return [
+                        'primary' => $row['title'],
+                        'secondary' => number_format((float)$row['score'], 1) . ' · ' . $row['attempt_date'],
+                    ];
+                }, $attemptRows),
             ],
         ];
+        $response['hideSections'] = ['community-panel', 'achievements-panel'];
 
         json_result($response);
         break;
@@ -516,12 +470,14 @@ switch ($user['role']) {
         json_result($response);
         break;
 
-    case 'school_admin':
-    default:
+    case 'content_admin':
+    case 'super_admin':
         $totalUsers = (int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
         $activeUsers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE status = 'active'")->fetchColumn();
         $courseCount = (int)$pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
-        $enrollmentCount = (int)$pdo->query('SELECT COUNT(*) FROM course_enrollments')->fetchColumn();
+        $testCount = (int)$pdo->query('SELECT COUNT(*) FROM tests')->fetchColumn();
+        $attemptCount = (int)$pdo->query('SELECT COUNT(*) FROM test_attempts')->fetchColumn();
+        $studentCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'student'")->fetchColumn();
 
         $stmt = $pdo->query(
             'SELECT a.name, AVG(sp.score) AS avg_score
@@ -538,15 +494,9 @@ switch ($user['role']) {
             $skillValues[] = (float)$row['avg_score'];
         }
 
-        $posts = (int)$pdo->query('SELECT COUNT(*) FROM community_posts')->fetchColumn();
-        $comments = (int)$pdo->query('SELECT COUNT(*) FROM post_comments')->fetchColumn();
-        $likes = (int)$pdo->query('SELECT COUNT(*) FROM post_likes')->fetchColumn();
-        $attempts = (int)$pdo->query('SELECT COUNT(*) FROM test_attempts')->fetchColumn();
-        $progressUpdates = (int)$pdo->query('SELECT COUNT(*) FROM progress')->fetchColumn();
-
         $response = base_response();
         $response['primaryChartTitle'] = 'Skill distribution';
-        $response['secondaryChartTitle'] = 'Engagement metrics';
+        $response['secondaryChartTitle'] = 'Platform activity';
         $response['primaryChart'] = [
             'type' => 'radar',
             'data' => [
@@ -563,16 +513,15 @@ switch ($user['role']) {
         $response['secondaryChart'] = [
             'type' => 'bar',
             'data' => [
-                'labels' => ['Posts', 'Comments', 'Likes', 'Test attempts', 'Progress updates'],
+                'labels' => ['Students', 'Courses', 'Tests', 'Attempts'],
                 'datasets' => [[
-                    'label' => 'Engagement',
-                    'data' => [$posts, $comments, $likes, $attempts, $progressUpdates],
+                    'label' => 'Counts',
+                    'data' => [$studentCount, $courseCount, $testCount, $attemptCount],
                     'backgroundColor' => [
                         'rgba(33,150,243,0.65)',
                         'rgba(76,175,80,0.65)',
                         'rgba(255,193,7,0.65)',
                         'rgba(156,39,176,0.65)',
-                        'rgba(255,87,34,0.65)',
                     ],
                 ]],
             ],
@@ -580,40 +529,160 @@ switch ($user['role']) {
         $response['highlights'] = [
             'Total users: ' . $totalUsers,
             'Active users: ' . $activeUsers,
-            'Course stats: ' . $courseCount . ' courses / ' . $enrollmentCount . ' enrollments',
-            'Engagement metrics loaded for community, tests, and progress',
+            'Course stats: ' . $courseCount . ' courses / ' . $testCount . ' tests',
+            'Attempt volume: ' . $attemptCount . ' attempts',
         ];
-        $response['recentAchievements'] = load_recent_achievements($pdo, (int)$user['sub']);
+        $response['recentAchievements'] = [];
         $response['communityFeed'] = load_community($pdo);
         $response['metrics'] = [
             ['label' => 'Total Users', 'value' => $totalUsers],
             ['label' => 'Active Users', 'value' => $activeUsers],
             ['label' => 'Courses', 'value' => $courseCount],
-            ['label' => 'Enrollments', 'value' => $enrollmentCount],
+            ['label' => 'Tests', 'value' => $testCount],
         ];
         $response['widgets'] = [
             [
-                'title' => 'Course stats',
+                'title' => 'Platform activity',
                 'type' => 'list',
                 'items' => [
-                    ['primary' => 'Courses', 'secondary' => (string)$courseCount],
-                    ['primary' => 'Enrollments', 'secondary' => (string)$enrollmentCount],
-                    ['primary' => 'Tests attempted', 'secondary' => (string)$attempts],
+                    ['primary' => 'Students', 'secondary' => (string)$studentCount],
+                    ['primary' => 'Course records', 'secondary' => (string)$courseCount],
+                    ['primary' => 'Test records', 'secondary' => (string)$testCount],
+                    ['primary' => 'Attempts', 'secondary' => (string)$attemptCount],
                 ],
-                'emptyText' => 'No course stats available.',
-            ],
-            [
-                'title' => 'Engagement metrics',
-                'type' => 'list',
-                'items' => [
-                    ['primary' => 'Community posts', 'secondary' => (string)$posts],
-                    ['primary' => 'Comments', 'secondary' => (string)$comments],
-                    ['primary' => 'Likes', 'secondary' => (string)$likes],
-                    ['primary' => 'Progress updates', 'secondary' => (string)$progressUpdates],
-                ],
-                'emptyText' => 'No engagement data.',
+                'emptyText' => 'No platform data available.',
             ],
         ];
+
+        json_result($response);
+        break;
+
+    case 'school_admin':
+    default:
+        $schoolId = (int)($user['school_id'] ?? 0);
+        $schoolName = '';
+        $students = [];
+        $gradeRows = [];
+        $attemptRows = [];
+        $totalStudents = 0;
+        $avgScore = 0.0;
+        $attemptCount = 0;
+
+        if ($schoolId > 0) {
+            $stmt = $pdo->prepare('SELECT name FROM schools WHERE id = ?');
+            $stmt->execute([$schoolId]);
+            $schoolName = (string)($stmt->fetchColumn() ?: '');
+
+            $stmt = $pdo->prepare(
+                'SELECT id, name, grade
+                 FROM users
+                 WHERE role = "student" AND school_id = ?
+                 ORDER BY grade ASC, name ASC'
+            );
+            $stmt->execute([$schoolId]);
+            $students = $stmt->fetchAll();
+            $totalStudents = count($students);
+
+            $stmt = $pdo->prepare(
+                'SELECT COALESCE(u.grade, "Unassigned") AS grade_label,
+                        COALESCE(AVG(ta.score), 0) AS avg_score,
+                        COUNT(DISTINCT u.id) AS student_count
+                 FROM users u
+                 LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                 WHERE u.role = "student" AND u.school_id = ?
+                 GROUP BY COALESCE(u.grade, "Unassigned")
+                 ORDER BY grade_label ASC'
+            );
+            $stmt->execute([$schoolId]);
+            $gradeRows = $stmt->fetchAll();
+
+            $stmt = $pdo->prepare('SELECT COALESCE(AVG(score),0), COUNT(*) FROM test_attempts ta JOIN users u ON u.id = ta.student_id WHERE u.school_id = ? AND u.role = "student"');
+            $stmt->execute([$schoolId]);
+            $vals = $stmt->fetch(PDO::FETCH_NUM);
+            if ($vals) {
+                $avgScore = (float)$vals[0];
+                $attemptCount = (int)$vals[1];
+            }
+
+            $stmt = $pdo->prepare(
+                'SELECT u.id, u.name, u.grade, COALESCE(AVG(ta.score), 0) AS avg_score, COUNT(ta.id) AS attempts
+                 FROM users u
+                 LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                 WHERE u.role = "student" AND u.school_id = ?
+                 GROUP BY u.id, u.name, u.grade
+                 ORDER BY avg_score DESC, attempts DESC, u.name ASC
+                 LIMIT 15'
+            );
+            $stmt->execute([$schoolId]);
+            $attemptRows = $stmt->fetchAll();
+        }
+
+        $response = base_response();
+        $response['primaryChartTitle'] = 'Class-wise progress';
+        $response['secondaryChartTitle'] = 'Student performance';
+        $response['primaryChart'] = [
+            'type' => 'bar',
+            'data' => [
+                'labels' => array_map(static fn (array $row): string => (string)$row['grade_label'], $gradeRows),
+                'datasets' => [[
+                    'label' => 'Average score',
+                    'data' => array_map(static fn (array $row): float => (float)$row['avg_score'], $gradeRows),
+                    'backgroundColor' => 'rgba(76, 175, 80, 0.65)',
+                ]],
+            ],
+        ];
+        $response['secondaryChart'] = [
+            'type' => 'bar',
+            'data' => [
+                'labels' => array_map(static fn (array $row): string => (string)$row['name'], $attemptRows),
+                'datasets' => [[
+                    'label' => 'Avg score',
+                    'data' => array_map(static fn (array $row): float => (float)$row['avg_score'], $attemptRows),
+                    'backgroundColor' => 'rgba(33, 150, 243, 0.65)',
+                ]],
+            ],
+        ];
+        $response['highlights'] = [
+            $schoolId > 0 ? ('School dashboard: ' . ($schoolName !== '' ? $schoolName : ('#' . $schoolId))) : 'No school linked to this account.',
+            'Students in school: ' . $totalStudents,
+            'Average test score: ' . number_format($avgScore, 1),
+            'Tests attempted: ' . $attemptCount,
+        ];
+        $response['recentAchievements'] = [];
+        $response['communityFeed'] = [];
+        $response['metrics'] = [
+            ['label' => 'Students', 'value' => $totalStudents],
+            ['label' => 'Avg Test Score', 'value' => number_format($avgScore, 1)],
+            ['label' => 'Tests Attempted', 'value' => $attemptCount],
+            ['label' => 'Grades', 'value' => count($gradeRows)],
+        ];
+        $response['widgets'] = [
+            [
+                'title' => 'Class progress',
+                'type' => 'list',
+                'emptyText' => 'No class data available.',
+                'items' => array_map(static function (array $row): array {
+                    return [
+                        'primary' => (string)$row['grade_label'],
+                        'secondary' => number_format((float)$row['avg_score'], 1) . ' avg · ' . (int)$row['student_count'] . ' students',
+                    ];
+                }, $gradeRows),
+            ],
+            [
+                'title' => 'Student reports',
+                'type' => 'list',
+                'emptyText' => 'No students found.',
+                'items' => array_map(static function (array $row): array {
+                    return [
+                        'primary' => $row['name'],
+                        'secondary' => 'Grade ' . ($row['grade'] ?: 'Unassigned') . ' · Avg ' . number_format((float)$row['avg_score'], 1) . ' · ' . (int)$row['attempts'] . ' tests',
+                        'link' => url_for('student_report.php?student_id=' . (int)$row['id']),
+                        'link_label' => 'Open report',
+                    ];
+                }, $attemptRows),
+            ],
+        ];
+        $response['hideSections'] = ['community-panel', 'achievements-panel'];
 
         json_result($response);
         break;
