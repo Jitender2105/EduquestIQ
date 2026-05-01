@@ -5,6 +5,7 @@ require_once __DIR__ . '/includes_auth.php';
 require_once __DIR__ . '/includes_csrf.php';
 require_once __DIR__ . '/includes_skills.php';
 require_once __DIR__ . '/includes_sira.php';
+require_once __DIR__ . '/includes_payments.php';
 
 $user = require_auth(['student']);
 
@@ -33,13 +34,19 @@ try {
 
     // Ensure test exists
     $stmt = $pdo->prepare(
-        'SELECT id, total_marks, start_at, end_at FROM tests WHERE id = ?'
+        'SELECT id, total_marks, start_at, end_at, price_inr FROM tests WHERE id = ?'
     );
     $stmt->execute([$testId]);
     $test = $stmt->fetch();
     if (!$test) {
         $pdo->rollBack();
         header('Location: ' . url_for('tests.php'));
+        exit;
+    }
+
+    if ((float)($test['price_inr'] ?? 0) > 0 && !test_purchase_is_paid($pdo, $testId, (int)$user['sub'])) {
+        $pdo->rollBack();
+        header('Location: ' . url_for('test_purchase.php?id=' . $testId));
         exit;
     }
 

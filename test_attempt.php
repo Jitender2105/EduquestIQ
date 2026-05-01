@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_csrf.php';
+require_once __DIR__ . '/includes_payments.php';
 
 $user = require_auth(['student']);
 
@@ -15,7 +16,7 @@ if ($testId <= 0) {
 $pdo = get_pdo();
 
 $stmt = $pdo->prepare(
-    'SELECT id, title, description, instruction, test_year, start_at, end_at, total_marks, duration_minutes
+    'SELECT id, title, description, instruction, test_year, start_at, end_at, total_marks, duration_minutes, price_inr
      FROM tests
      WHERE id = ?'
 );
@@ -24,6 +25,12 @@ $test = $stmt->fetch();
 
 if (!$test) {
     header('Location: ' . url_for('tests.php'));
+    exit;
+}
+
+$testPrice = (float)($test['price_inr'] ?? 0);
+if ($testPrice > 0 && !test_purchase_is_paid($pdo, $testId, (int)$user['sub'])) {
+    header('Location: ' . url_for('test_purchase.php?id=' . $testId));
     exit;
 }
 

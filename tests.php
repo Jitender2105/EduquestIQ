@@ -3,20 +3,25 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_fallback.php';
+require_once __DIR__ . '/includes_payments.php';
 
 $pdo = get_pdo();
 
-$stmt = $pdo->query(
-    'SELECT t.id, t.title, t.description, t.start_at, t.end_at, t.total_marks, t.duration_minutes, t.created_at,
-            u.name AS teacher_name
-     FROM tests t
-     LEFT JOIN users u ON t.created_by = u.id
-     ORDER BY t.created_at DESC'
-);
-$tests = $stmt->fetchAll();
+$tests = [];
+if ($authUser) {
+    $stmt = $pdo->query(
+        'SELECT t.id, t.title, t.description, t.start_at, t.end_at, t.total_marks, t.duration_minutes, t.price_inr, t.created_at,
+                u.name AS teacher_name
+         FROM tests t
+         LEFT JOIN users u ON t.created_by = u.id
+         ORDER BY t.created_at DESC'
+    );
+    $tests = $stmt->fetchAll();
+}
 
 $attempted = [];
 $attemptIds = [];
+$paidTests = [];
 $nowUtc = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 if ($authUser && $authUser['role'] === 'student') {
     $stmt = $pdo->prepare(
@@ -33,6 +38,18 @@ if ($authUser && $authUser['role'] === 'student') {
             $attempted[$testId] = true;
         }
     }
+
+    $stmt = $pdo->prepare(
+        'SELECT test_id
+         FROM test_purchases
+         WHERE student_id = ? AND payment_status = "paid"'
+    );
+    if ($stmt) {
+        $stmt->execute([(int)$authUser['sub']]);
+        foreach ($stmt->fetchAll() as $row) {
+            $paidTests[(int)$row['test_id']] = true;
+        }
+    }
 }
 ?>
 
@@ -42,6 +59,29 @@ if ($authUser && $authUser['role'] === 'student') {
 </div>
 
 <?php if (!$tests): ?>
+    <?php if (!$authUser): ?>
+        <?php
+        render_static_fallback([
+            'eyebrow' => 'Assessment Center',
+            'title' => 'Sign in to view available tests',
+            'description' => 'Test listings are hidden until you log in. After login, students can see test prices, buy access where needed, and attempt the exam.',
+            'points' => [
+                'Students can buy paid tests securely before attempting.',
+                'All attempts stay tied to your student account.',
+                'SIRA reports open automatically after submission.',
+            ],
+            'cards' => [
+                ['title' => 'Secure access', 'meta' => 'Login required', 'text' => 'Keep paid assessments and reports private to student accounts.'],
+                ['title' => 'Payment protected', 'meta' => 'Razorpay checkout', 'text' => 'Checkout opens only when a test has a price set.'],
+                ['title' => 'Personal reports', 'meta' => 'SIRA', 'text' => 'Each attempt unlocks skill scoring and feedback.'],
+            ],
+            'primary_label' => 'Login',
+            'primary_link' => url_for('login.php'),
+            'secondary_label' => 'Register',
+            'secondary_link' => url_for('register.php'),
+        ]);
+        ?>
+    <?php else: ?>
     <?php
     render_static_fallback([
         'eyebrow' => 'Assessment Center',
@@ -63,6 +103,7 @@ if ($authUser && $authUser['role'] === 'student') {
         'secondary_link' => url_for('manage_lms.php'),
     ]);
     ?>
+    <?php endif; ?>
 <?php else: ?>
     <div class="row g-3">
         <?php foreach ($tests as $test): ?>
@@ -109,10 +150,17 @@ if ($authUser && $authUser['role'] === 'student') {
                                         View SIRA Report
                                     </a>
                                 <?php elseif ($canAttempt): ?>
-                                    <a href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>"
-                                       class="btn btn-sm btn-primary">
-                                        Attempt
-                                    </a>
+                                    <?php if ((float)($test['price_inr'] ?? 0) > 0 && empty($paidTests[(int)$test['id']])): ?>
+                                        <a href="<?php echo htmlspecialchars(url_for('test_purchase.php?id=' . (int)$test['id'])); ?>"
+                                           class="btn btn-sm btn-primary">
+                                            Buy for <?php echo htmlspecialchars(test_price_label((float)$test['price_inr'])); ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <a href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>"
+                                           class="btn btn-sm btn-primary">
+                                            Attempt
+                                        </a>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <button class="btn btn-sm btn-outline-secondary" disabled>Not available</button>
                                 <?php endif; ?>

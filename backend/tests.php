@@ -52,6 +52,7 @@ function backend_tests_default_bundle(): array
         'description' => '',
         'instruction' => '',
         'duration_minutes' => '60',
+        'price_inr' => '0.00',
         'start_at' => '',
         'end_at' => '',
         'test_year' => (string)date('Y'),
@@ -135,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $bundle['description'] = (string)($_POST['description'] ?? '');
         $bundle['instruction'] = (string)($_POST['instruction'] ?? '');
         $bundle['duration_minutes'] = (string)($_POST['duration_minutes'] ?? '60');
+        $bundle['price_inr'] = (string)($_POST['price_inr'] ?? '0.00');
         $bundle['start_at'] = (string)($_POST['start_at'] ?? '');
         $bundle['end_at'] = (string)($_POST['end_at'] ?? '');
         $bundle['test_year'] = trim((string)($_POST['test_year'] ?? ''));
@@ -152,6 +154,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $durationMinutes = (int)$bundle['duration_minutes'];
         if ($durationMinutes <= 0) {
             $errors[] = 'Duration must be at least 1 minute.';
+        }
+        $priceInr = (float)$bundle['price_inr'];
+        if ($priceInr < 0) {
+            $errors[] = 'Price cannot be negative.';
         }
         $startAtUtc = backend_tests_local_to_utc($bundle['start_at']);
         $endAtUtc = backend_tests_local_to_utc($bundle['end_at']);
@@ -232,8 +238,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->beginTransaction();
                 $stmt = $pdo->prepare(
                     'INSERT INTO tests
-                     (title, description, instruction, test_year, start_at, end_at, created_by, total_marks, duration_minutes, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+                     (title, description, instruction, test_year, start_at, end_at, created_by, total_marks, duration_minutes, price_inr, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
                 );
                 $stmt->execute([
                     $bundle['title'],
@@ -245,6 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     (int)$user['sub'],
                     $totalMarks,
                     $durationMinutes,
+                    $priceInr,
                 ]);
                 $testId = (int)$pdo->lastInsertId();
 
@@ -306,7 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $attributes = $pdo->query('SELECT id, name FROM attributes ORDER BY name')->fetchAll();
 $subAttributes = $pdo->query('SELECT id, attribute_id, name FROM sub_attributes ORDER BY attribute_id, name')->fetchAll();
 $tests = $pdo->query(
-    'SELECT t.id, t.title, t.test_year, t.start_at, t.end_at, t.duration_minutes, t.total_marks, t.created_at,
+    'SELECT t.id, t.title, t.test_year, t.start_at, t.end_at, t.duration_minutes, t.price_inr, t.total_marks, t.created_at,
             COALESCE(qc.question_count, 0) AS question_count
      FROM tests t
      LEFT JOIN (
@@ -466,6 +473,11 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <input class="form-control" type="number" min="1" name="duration_minutes" value="<?php echo htmlspecialchars($bundle['duration_minutes']); ?>" required>
                 </div>
                 <div class="col-lg-3">
+                    <label class="form-label">Price (INR)</label>
+                    <input class="form-control" type="number" min="0" step="0.01" name="price_inr" value="<?php echo htmlspecialchars($bundle['price_inr'] ?? '0.00'); ?>">
+                    <div class="form-text">Leave as 0 for a free test.</div>
+                </div>
+                <div class="col-lg-3">
                     <label class="form-label">Test year</label>
                     <input class="form-control" name="test_year" value="<?php echo htmlspecialchars($bundle['test_year']); ?>" required>
                 </div>
@@ -519,6 +531,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
                             <th>Year</th>
                             <th>Window</th>
                             <th>Duration</th>
+                            <th>Price</th>
                             <th>Questions</th>
                             <th>Total Marks</th>
                         </tr>
@@ -534,6 +547,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
                                     <div class="text-muted">to <?php echo htmlspecialchars(backend_tests_utc_to_local_label((string)($test['end_at'] ?? ''))); ?></div>
                                 </td>
                                 <td><?php echo (int)$test['duration_minutes']; ?> min</td>
+                                <td><?php echo htmlspecialchars(test_price_label((float)($test['price_inr'] ?? 0))); ?></td>
                                 <td><?php echo (int)$test['question_count']; ?></td>
                                 <td><?php echo (int)$test['total_marks']; ?></td>
                             </tr>

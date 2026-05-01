@@ -768,10 +768,6 @@ switch ($user['role']) {
             if ($selectedGrade !== '') {
                 $params[] = $selectedGrade;
             }
-            $params[] = $schoolId;
-            if ($selectedGrade !== '') {
-                $params[] = $selectedGrade;
-            }
             $studentStmt->execute($params);
             $students = $studentStmt->fetchAll();
 

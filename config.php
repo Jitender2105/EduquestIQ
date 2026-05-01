@@ -32,6 +32,9 @@ $config = [
     'jwt_secret' => 'change_this_to_a_long_random_secret_string',
     'jwt_issuer' => 'eduquestiq',
     'jwt_expiry_seconds' => 60 * 60 * 24 * 7, // 7 days
+    'razorpay_key_id' => '',
+    'razorpay_key_secret' => '',
+    'payment_support_email' => 'jitender@eduquestiq.com',
     'base_url' => '',
 ];
 
