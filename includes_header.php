@@ -20,6 +20,7 @@ $pageMeta = [
     'learning_paths.php' => ['Learning Paths | EduquestIQ', 'Follow structured course journeys or learn self-paced with saved progress.'],
     'community.php' => ['Community Learning | EduquestIQ', 'Collaborate with peers through posts, comments, and likes in the EduquestIQ community.'],
     'articles.php' => ['Articles | EduquestIQ', 'Explore learning insights, study tips, and curated education resources.'],
+    'article.php' => ['Article | EduquestIQ', 'Read curated learning articles with FAQs, related content, and latest updates.'],
     'video_lectures.php' => ['Video Lectures | EduquestIQ', 'Access course-linked video lessons with sequence and duration tracking.'],
     'materials.php' => ['Study Materials | EduquestIQ', 'Find PDFs, DOCs, PPTs, and links organized by course and skill domain.'],
     'dashboard.php' => ['Dashboard | EduquestIQ', 'Track progress, skills, achievements, and performance through dynamic role-based dashboards.'],
@@ -50,8 +51,8 @@ $pageMeta = [
     'backend/users.php' => ['Backend Users | EduquestIQ', 'Manage user status, school assignment, and profile governance.'],
 ];
 $meta = $pageMeta[$scriptPath] ?? $pageMeta[$currentPage] ?? null;
-$metaTitle = $meta[0] ?? 'EduquestIQ | Learning Platform';
-$metaDescription = $meta[1] ?? 'EduquestIQ is a skills-first LMS for students, parents, teachers, and school administrators.';
+$metaTitle = $GLOBALS['metaTitleOverride'] ?? ($meta[0] ?? 'EduquestIQ | Learning Platform');
+$metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'EduquestIQ is a skills-first LMS for students, parents, teachers, and school administrators.');
 ?>
 <!DOCTYPE html>
 <html lang="en">

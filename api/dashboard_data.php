@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes_auth.php';
+require_once __DIR__ . '/../includes_sira.php';
 
 header('Content-Type: application/json');
 
@@ -82,140 +83,251 @@ function base_response(): array
     ];
 }
 
+function average_from_rows(array $rows, string $key): float
+{
+    if (!$rows) {
+        return 0.0;
+    }
+
+    $values = array_map(static fn (array $row): float => (float)($row[$key] ?? 0), $rows);
+    $values = array_filter($values, static fn (float $value): bool => $value > 0 || $value === 0.0);
+    if (!$values) {
+        return 0.0;
+    }
+
+    return array_sum($values) / count($values);
+}
+
+function suggestion_paragraphs_for_scores(array $rows, string $subject, string $studentName = ''): array
+{
+    $paragraphs = [];
+    foreach (array_slice($rows, 0, 3) as $row) {
+        $label = (string)($row['name'] ?? $row['attribute_name'] ?? $row['sub_name'] ?? $subject);
+        $paragraphs[] = sira_attribute_message($label, (float)($row['score'] ?? 0), $studentName);
+    }
+    if (!$paragraphs) {
+        $paragraphs[] = $subject . ' insights will appear once enough learning data is available.';
+    }
+    return $paragraphs;
+}
+
 switch ($user['role']) {
     case 'student':
         $studentId = (int)$user['sub'];
-
-        $stmt = $pdo->prepare(
-            'SELECT sa.name AS sub_name, sp.score
-             FROM skill_progress sp
-             JOIN sub_attributes sa ON sp.sub_attribute_id = sa.id
-             WHERE sp.student_id = ?
-             ORDER BY sa.name'
+        $studentInfoStmt = $pdo->prepare(
+            'SELECT u.id, u.name, u.grade, u.school_id, s.name AS school_name, s.state AS school_state
+             FROM users u
+             LEFT JOIN schools s ON s.id = u.school_id
+             WHERE u.id = ?'
         );
-        $stmt->execute([$studentId]);
-        $skills = $stmt->fetchAll();
-        $skillLabels = [];
-        $skillScores = [];
-        foreach ($skills as $row) {
-            $skillLabels[] = $row['sub_name'];
-            $skillScores[] = (float)$row['score'];
-        }
+        $studentInfoStmt->execute([$studentId]);
+        $studentInfo = $studentInfoStmt->fetch() ?: ['name' => $user['name'], 'grade' => null, 'school_id' => null, 'school_name' => null, 'school_state' => null];
+        $studentGrade = trim((string)($studentInfo['grade'] ?? ''));
+        $studentSchoolId = (int)($studentInfo['school_id'] ?? 0);
+        $studentSchoolState = trim((string)($studentInfo['school_state'] ?? ''));
 
         $stmt = $pdo->prepare(
-            'SELECT c.id, c.title, AVG(p.completion_percentage) AS completion
-             FROM progress p
-             JOIN courses c ON p.course_id = c.id
-             WHERE p.student_id = ?
-             GROUP BY c.id, c.title
-             ORDER BY c.title'
-        );
-        $stmt->execute([$studentId]);
-        $progressRows = $stmt->fetchAll();
-        $progressLabels = [];
-        $progressValues = [];
-        foreach ($progressRows as $row) {
-            $progressLabels[] = $row['title'];
-            $progressValues[] = (float)$row['completion'];
-        }
-
-        $stmt = $pdo->prepare(
-            'SELECT c.id, c.title, ce.enrolled_at
-             FROM course_enrollments ce
-             JOIN courses c ON ce.course_id = c.id
-             WHERE ce.student_id = ?
-             ORDER BY ce.enrolled_at DESC
+            'SELECT t.title, ta.score, ta.attempt_date
+             FROM test_attempts ta
+             JOIN tests t ON t.id = ta.test_id
+             WHERE ta.student_id = ?
+             ORDER BY ta.attempt_date DESC
              LIMIT 5'
         );
         $stmt->execute([$studentId]);
-        $activeCourses = $stmt->fetchAll();
+        $recentTests = $stmt->fetchAll();
 
         $stmt = $pdo->prepare(
-            'SELECT t.id, t.title, t.duration_minutes
-             FROM tests t
-             WHERE EXISTS (SELECT 1 FROM test_questions tq WHERE tq.test_id = t.id)
-               AND NOT EXISTS (
-                   SELECT 1 FROM test_attempts ta WHERE ta.test_id = t.id AND ta.student_id = ?
-               )
-             ORDER BY t.created_at DESC
-             LIMIT 5'
+            'SELECT a.name AS attribute_name, COALESCE(AVG(sp.score), 0) AS score
+             FROM attributes a
+             LEFT JOIN skill_progress sp ON sp.attribute_id = a.id AND sp.student_id = ?
+             GROUP BY a.id, a.name
+             ORDER BY a.name'
         );
         $stmt->execute([$studentId]);
-        $upcomingTests = $stmt->fetchAll();
+        $attributeRows = $stmt->fetchAll();
 
-        $avgSkill = $skillScores ? array_sum($skillScores) / count($skillScores) : 0.0;
-        $avgCourseProgress = $progressValues ? array_sum($progressValues) / count($progressValues) : 0.0;
-        $stmt = $pdo->prepare('SELECT COUNT(*) FROM user_achievements WHERE user_id = ?');
+        $stmt = $pdo->prepare(
+            'SELECT sa.name AS sub_name, COALESCE(sp.score, 0) AS score, a.name AS attribute_name
+             FROM sub_attributes sa
+             JOIN attributes a ON a.id = sa.attribute_id
+             LEFT JOIN skill_progress sp ON sp.sub_attribute_id = sa.id AND sp.student_id = ?
+             ORDER BY a.name, sa.name'
+        );
         $stmt->execute([$studentId]);
-        $achievementCount = (int)$stmt->fetchColumn();
+        $subAttributeRows = $stmt->fetchAll();
+
+        $avgTestScore = 0.0;
+        if ($recentTests) {
+            $avgTestScore = array_sum(array_map(static fn (array $row): float => (float)$row['score'], $recentTests)) / count($recentTests);
+        } else {
+            $stmt = $pdo->prepare('SELECT COALESCE(AVG(score), 0) FROM test_attempts WHERE student_id = ?');
+            $stmt->execute([$studentId]);
+            $avgTestScore = (float)$stmt->fetchColumn();
+        }
+
+        $avgAttributeScore = average_from_rows($attributeRows, 'score');
+        $avgSubAttributeScore = average_from_rows($subAttributeRows, 'score');
+
+        $sameSchoolClassAvg = 0.0;
+        $sameStateClassAvg = 0.0;
+        $sameClassPeers = [];
+        $sameStatePeers = [];
+        if ($studentGrade !== '') {
+            $peerStmt = $pdo->prepare(
+                'SELECT u.name, COALESCE(AVG(ta.score), 0) AS score
+                 FROM users u
+                 LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                 WHERE u.role = "student" AND u.school_id = ? AND u.grade = ? AND u.id <> ?
+                 GROUP BY u.id, u.name
+                 ORDER BY score DESC, u.name ASC
+                 LIMIT 10'
+            );
+            $peerStmt->execute([$studentSchoolId, $studentGrade, $studentId]);
+            $sameClassPeers = $peerStmt->fetchAll();
+
+            $sameClassStmt = $pdo->prepare(
+                'SELECT COALESCE(AVG(ta.score), 0)
+                 FROM users u
+                 LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                 WHERE u.role = "student" AND u.school_id = ? AND u.grade = ?'
+            );
+            $sameClassStmt->execute([$studentSchoolId, $studentGrade]);
+            $sameSchoolClassAvg = (float)$sameClassStmt->fetchColumn();
+
+            if ($studentSchoolState !== '') {
+                $stateStmt = $pdo->prepare(
+                    'SELECT u.name, s.name AS school_name, COALESCE(AVG(ta.score), 0) AS score
+                     FROM users u
+                     LEFT JOIN schools s ON s.id = u.school_id
+                     LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                     WHERE u.role = "student" AND u.grade = ? AND s.state = ? AND (u.school_id IS NULL OR u.school_id <> ?)
+                     GROUP BY u.id, u.name, s.name
+                     ORDER BY score DESC, u.name ASC
+                     LIMIT 10'
+                );
+                $stateStmt->execute([$studentGrade, $studentSchoolState, $studentSchoolId]);
+                $sameStatePeers = $stateStmt->fetchAll();
+
+                $sameStateStmt = $pdo->prepare(
+                    'SELECT COALESCE(AVG(ta.score), 0)
+                     FROM users u
+                     LEFT JOIN schools s ON s.id = u.school_id
+                     LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                     WHERE u.role = "student" AND u.grade = ? AND s.state = ? AND (u.school_id IS NULL OR u.school_id <> ?)'
+                );
+                $sameStateStmt->execute([$studentGrade, $studentSchoolState, $studentSchoolId]);
+                $sameStateClassAvg = (float)$sameStateStmt->fetchColumn();
+            }
+        }
+
+        $comparisonMetrics = [
+            ['label' => 'My average', 'value' => number_format($avgTestScore, 1)],
+            ['label' => 'Same school / same class', 'value' => number_format($sameSchoolClassAvg, 1)],
+            ['label' => 'Same state / same class', 'value' => number_format($sameStateClassAvg, 1)],
+        ];
 
         $response = base_response();
-        $response['primaryChartTitle'] = 'Skill radar chart';
-        $response['secondaryChartTitle'] = 'Progress chart';
+        $response['primaryChartTitle'] = 'Test wise score - last 5 tests';
+        $response['secondaryChartTitle'] = 'Attribute and class comparison';
         $response['primaryChart'] = [
-            'type' => 'radar',
+            'type' => 'line',
             'data' => [
-                'labels' => $skillLabels,
+                'labels' => array_map(static fn (array $row): string => (string)$row['title'], array_reverse($recentTests)),
                 'datasets' => [[
-                    'label' => 'Skill score',
-                    'data' => $skillScores,
-                    'backgroundColor' => 'rgba(54, 162, 235, 0.18)',
-                    'borderColor' => 'rgba(54, 162, 235, 1)',
-                    'borderWidth' => 2,
+                    'label' => 'Test score',
+                    'data' => array_map(static fn (array $row): float => (float)$row['score'], array_reverse($recentTests)),
+                    'borderColor' => 'rgba(67, 116, 255, 1)',
+                    'backgroundColor' => 'rgba(67, 116, 255, 0.18)',
+                    'tension' => 0.35,
+                    'fill' => true,
                 ]],
             ],
         ];
         $response['secondaryChart'] = [
             'type' => 'bar',
             'data' => [
-                'labels' => $progressLabels,
+                'labels' => ['My Avg', 'Same School / Class', 'Same State / Class'],
                 'datasets' => [[
-                    'label' => 'Completion %',
-                    'data' => $progressValues,
-                    'backgroundColor' => 'rgba(75, 192, 192, 0.55)',
+                    'label' => 'Score comparison',
+                    'data' => [$avgTestScore, $sameSchoolClassAvg, $sameStateClassAvg],
+                    'backgroundColor' => ['rgba(67,116,255,0.65)', 'rgba(76,175,80,0.65)', 'rgba(255,193,7,0.65)'],
                 ]],
             ],
         ];
-        $response['highlights'] = $activeCourses || $upcomingTests
-            ? [
-                'Active courses: ' . count($activeCourses),
-                'Upcoming tests: ' . count($upcomingTests),
-            ]
-            : ['Start by enrolling in a course.'];
+        $response['highlights'] = [
+            'Current class: ' . ($studentGrade !== '' ? $studentGrade : 'Unassigned'),
+            'Recent tests tracked: ' . count($recentTests),
+            'Average attribute score: ' . number_format($avgAttributeScore, 1),
+            'Average sub-attribute score: ' . number_format($avgSubAttributeScore, 1),
+        ];
         $response['recentAchievements'] = load_recent_achievements($pdo, $studentId);
         $response['communityFeed'] = load_community($pdo);
         $response['metrics'] = [
-            ['label' => 'Active Courses', 'value' => count($activeCourses)],
-            ['label' => 'Upcoming Tests', 'value' => count($upcomingTests)],
-            ['label' => 'Avg Skill Score', 'value' => number_format($avgSkill, 1)],
-            ['label' => 'Avg Progress %', 'value' => number_format($avgCourseProgress, 1)],
+            ['label' => 'Last 5 Avg', 'value' => number_format($avgTestScore, 1)],
+            ['label' => 'Attribute Avg', 'value' => number_format($avgAttributeScore, 1)],
+            ['label' => 'Sub-Attr Avg', 'value' => number_format($avgSubAttributeScore, 1)],
+            ['label' => 'Tests', 'value' => count($recentTests)],
         ];
         $response['widgets'] = [
             [
-                'title' => 'Active courses',
+                'title' => 'Last 5 test scores',
                 'type' => 'list',
-                'emptyText' => 'No enrolled courses yet.',
+                'emptyText' => 'No test attempts yet.',
                 'items' => array_map(static function (array $row): array {
-                    return ['primary' => $row['title'], 'secondary' => 'Enrolled: ' . $row['enrolled_at']];
-                }, $activeCourses),
+                    return [
+                        'primary' => $row['title'],
+                        'secondary' => number_format((float)$row['score'], 1) . ' · ' . $row['attempt_date'],
+                    ];
+                }, array_reverse($recentTests)),
             ],
             [
-                'title' => 'Upcoming tests',
+                'title' => 'Attribute wise score',
                 'type' => 'list',
-                'emptyText' => 'No pending tests.',
+                'emptyText' => 'No skill progress yet.',
                 'items' => array_map(static function (array $row): array {
-                    return ['primary' => $row['title'], 'secondary' => ((int)$row['duration_minutes']) . ' min'];
-                }, $upcomingTests),
+                    return [
+                        'primary' => $row['attribute_name'],
+                        'secondary' => number_format((float)$row['score'], 1),
+                    ];
+                }, $attributeRows),
             ],
             [
-                'title' => 'Recent achievements',
-                'type' => 'list',
-                'emptyText' => 'No achievements yet.',
-                'items' => array_map(static function (array $row): array {
-                    return ['primary' => $row['title'], 'secondary' => $row['description']];
-                }, $response['recentAchievements']),
+                'title' => 'Comparison summary',
+                'type' => 'table',
+                'headers' => ['Scope', 'Average score'],
+                'rows' => array_map(static function (array $row): array {
+                    return [$row['label'], $row['value']];
+                }, $comparisonMetrics),
             ],
         ];
+        $response['roleSections'] = [
+            [
+                'title' => 'Attribute suggestions',
+                'paragraphs' => suggestion_paragraphs_for_scores($attributeRows, 'Attribute', (string)$studentInfo['name']),
+            ],
+            [
+                'title' => 'Overall suggestions',
+                'paragraphs' => [
+                    sira_overall_message($avgTestScore, (string)$studentInfo['name']),
+                    'Your testing pattern shows ' . count($recentTests) . ' recent checkpoints. Keep a steady weekly revision loop and focus on the lowest scoring attribute first.',
+                ],
+            ],
+            [
+                'title' => 'Peer comparison',
+                'items' => [
+                    'Same school / same class average: ' . number_format($sameSchoolClassAvg, 1),
+                    'Same state / same class average: ' . number_format($sameStateClassAvg, 1),
+                    'Top same-class peers tracked: ' . count($sameClassPeers),
+                    'Same-state peers tracked: ' . count($sameStatePeers),
+                ],
+            ],
+        ];
+        $response['comparisonRows'] = [
+            'sameClassPeers' => $sameClassPeers,
+            'sameStatePeers' => $sameStatePeers,
+        ];
+        $response['hideSections'] = ['community-panel', 'achievements-panel'];
 
         json_result($response);
         break;
@@ -563,81 +675,189 @@ switch ($user['role']) {
         $schoolName = '';
         $students = [];
         $gradeRows = [];
-        $attemptRows = [];
+        $studentRows = [];
+        $comparisonRows = [];
+        $selectedGrade = trim((string)($_GET['grade'] ?? ''));
+        $gradeOptions = [];
         $totalStudents = 0;
         $avgScore = 0.0;
         $attemptCount = 0;
+        $overallSira = 0.0;
+        $schoolState = '';
 
         if ($schoolId > 0) {
-            $stmt = $pdo->prepare('SELECT name FROM schools WHERE id = ?');
+            $stmt = $pdo->prepare('SELECT name, state FROM schools WHERE id = ?');
             $stmt->execute([$schoolId]);
-            $schoolName = (string)($stmt->fetchColumn() ?: '');
+            $school = $stmt->fetch() ?: ['name' => '', 'state' => ''];
+            $schoolName = (string)($school['name'] ?? '');
+            $schoolState = (string)($school['state'] ?? '');
 
-            $stmt = $pdo->prepare(
-                'SELECT id, name, grade
+            $gradeStmt = $pdo->prepare(
+                'SELECT DISTINCT COALESCE(NULLIF(TRIM(grade), ""), "Unassigned") AS grade_label
                  FROM users
                  WHERE role = "student" AND school_id = ?
-                 ORDER BY grade ASC, name ASC'
-            );
-            $stmt->execute([$schoolId]);
-            $students = $stmt->fetchAll();
-            $totalStudents = count($students);
-
-            $stmt = $pdo->prepare(
-                'SELECT COALESCE(u.grade, "Unassigned") AS grade_label,
-                        COALESCE(AVG(ta.score), 0) AS avg_score,
-                        COUNT(DISTINCT u.id) AS student_count
-                 FROM users u
-                 LEFT JOIN test_attempts ta ON ta.student_id = u.id
-                 WHERE u.role = "student" AND u.school_id = ?
-                 GROUP BY COALESCE(u.grade, "Unassigned")
                  ORDER BY grade_label ASC'
             );
-            $stmt->execute([$schoolId]);
-            $gradeRows = $stmt->fetchAll();
+            $gradeStmt->execute([$schoolId]);
+            $gradeOptions = array_map(static fn (array $row): string => (string)$row['grade_label'], $gradeStmt->fetchAll());
 
-            $stmt = $pdo->prepare('SELECT COALESCE(AVG(score),0), COUNT(*) FROM test_attempts ta JOIN users u ON u.id = ta.student_id WHERE u.school_id = ? AND u.role = "student"');
-            $stmt->execute([$schoolId]);
-            $vals = $stmt->fetch(PDO::FETCH_NUM);
-            if ($vals) {
-                $avgScore = (float)$vals[0];
-                $attemptCount = (int)$vals[1];
-            }
+            $gradeRowsStmt = $pdo->prepare(
+                'SELECT base.grade_label,
+                        COUNT(DISTINCT base.student_id) AS student_count,
+                        COUNT(DISTINCT base.attempt_id) AS test_attempted_count,
+                        COALESCE(AVG(base.student_sira), 0) AS sira_rating
+                 FROM (
+                    SELECT u.id AS student_id,
+                           COALESCE(NULLIF(TRIM(u.grade), ""), "Unassigned") AS grade_label,
+                           ta.id AS attempt_id,
+                           COALESCE(skill.avg_score, 0) AS student_sira
+                    FROM users u
+                    LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                    LEFT JOIN (
+                        SELECT student_id, AVG(score) AS avg_score
+                        FROM skill_progress
+                        GROUP BY student_id
+                    ) skill ON skill.student_id = u.id
+                    WHERE u.role = "student" AND u.school_id = ?
+                 ) base
+                 GROUP BY base.grade_label
+                 ORDER BY base.grade_label ASC'
+            );
+            $gradeRowsStmt->execute([$schoolId]);
+            $gradeRows = $gradeRowsStmt->fetchAll();
 
-            $stmt = $pdo->prepare(
-                'SELECT u.id, u.name, u.grade, COALESCE(AVG(ta.score), 0) AS avg_score, COUNT(ta.id) AS attempts
+            $statsStmt = $pdo->prepare(
+                'SELECT COALESCE(AVG(scores.avg_score), 0) AS avg_score,
+                        COUNT(DISTINCT ta.id) AS attempt_count,
+                        COUNT(DISTINCT u.id) AS student_count,
+                        COALESCE(AVG(scores.avg_score), 0) AS overall_sira
                  FROM users u
                  LEFT JOIN test_attempts ta ON ta.student_id = u.id
-                 WHERE u.role = "student" AND u.school_id = ?
-                 GROUP BY u.id, u.name, u.grade
-                 ORDER BY avg_score DESC, attempts DESC, u.name ASC
-                 LIMIT 15'
+                 LEFT JOIN (
+                    SELECT student_id, AVG(score) AS avg_score
+                    FROM skill_progress
+                    GROUP BY student_id
+                 ) scores ON scores.student_id = u.id
+                 WHERE u.school_id = ? AND u.role = "student"'
             );
-            $stmt->execute([$schoolId]);
-            $attemptRows = $stmt->fetchAll();
+            $statsStmt->execute([$schoolId]);
+            $stats = $statsStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            $avgScore = (float)($stats['avg_score'] ?? 0);
+            $attemptCount = (int)($stats['attempt_count'] ?? 0);
+            $totalStudents = (int)($stats['student_count'] ?? 0);
+            $overallSira = (float)($stats['overall_sira'] ?? 0);
+
+            $studentStmt = $pdo->prepare(
+                'SELECT u.id, u.name, COALESCE(NULLIF(TRIM(u.grade), ""), "Unassigned") AS grade_label,
+                        COALESCE(skill.avg_score, 0) AS sira_score,
+                        COUNT(DISTINCT ta.id) AS attempts
+                 FROM users u
+                 LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                 LEFT JOIN (
+                    SELECT student_id, AVG(score) AS avg_score
+                    FROM skill_progress
+                    GROUP BY student_id
+                 ) skill ON skill.student_id = u.id
+                 WHERE u.role = "student" AND u.school_id = ?'
+                    . ($selectedGrade !== '' ? ' AND COALESCE(NULLIF(TRIM(u.grade), ""), "Unassigned") = ?' : '') .
+                '
+                 GROUP BY u.id, u.name, grade_label, skill.avg_score
+                 ORDER BY grade_label ASC, sira_score DESC, u.name ASC'
+            );
+            $params = [$schoolId];
+            if ($selectedGrade !== '') {
+                $params[] = $selectedGrade;
+            }
+            $params[] = $schoolId;
+            if ($selectedGrade !== '') {
+                $params[] = $selectedGrade;
+            }
+            $studentStmt->execute($params);
+            $students = $studentStmt->fetchAll();
+
+            $attemptsStmt = $pdo->prepare(
+                'WITH ranked_attempts AS (
+                    SELECT ta.student_id, ta.score, ta.attempt_date, t.title,
+                           ROW_NUMBER() OVER (PARTITION BY ta.student_id ORDER BY ta.attempt_date DESC) AS rn
+                    FROM test_attempts ta
+                    JOIN tests t ON t.id = ta.test_id
+                    JOIN users u ON u.id = ta.student_id
+                    WHERE u.role = "student" AND u.school_id = ?'
+                    . ($selectedGrade !== '' ? ' AND COALESCE(NULLIF(TRIM(u.grade), ""), "Unassigned") = ?' : '') .
+                ')
+                 SELECT * FROM ranked_attempts WHERE rn <= 5 ORDER BY student_id ASC, rn ASC'
+            );
+            $attemptParams = [$schoolId];
+            if ($selectedGrade !== '') {
+                $attemptParams[] = $selectedGrade;
+            }
+            $attemptsStmt->execute($attemptParams);
+            $attemptsByStudent = [];
+            foreach ($attemptsStmt->fetchAll() as $row) {
+                $attemptsByStudent[(int)$row['student_id']][] = $row;
+            }
+
+            foreach ($students as &$student) {
+                $student['recent_attempts'] = $attemptsByStudent[(int)$student['id']] ?? [];
+            }
+            unset($student);
+
+            if ($schoolState !== '') {
+                $comparisonStmt = $pdo->prepare(
+                    'SELECT s.id, s.name, s.city, s.state,
+                            COUNT(DISTINCT u.id) AS student_count,
+                            COUNT(DISTINCT ta.id) AS test_attempted_count,
+                            COALESCE(AVG(scores.avg_score), 0) AS sira_rating
+                     FROM schools s
+                     LEFT JOIN users u ON u.school_id = s.id AND u.role = "student"
+                     LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                     LEFT JOIN (
+                        SELECT student_id, AVG(score) AS avg_score
+                        FROM skill_progress
+                        GROUP BY student_id
+                     ) scores ON scores.student_id = u.id
+                     WHERE s.state = ?
+                     GROUP BY s.id, s.name, s.city, s.state
+                     ORDER BY sira_rating DESC, student_count DESC
+                     LIMIT 8'
+                );
+                $comparisonStmt->execute([$schoolState]);
+                $comparisonRows = $comparisonStmt->fetchAll();
+            }
+
+            $studentsForSelected = array_values(array_filter($students, static function (array $row) use ($selectedGrade): bool {
+                return $selectedGrade === '' || (string)$row['grade_label'] === $selectedGrade;
+            }));
         }
 
         $response = base_response();
-        $response['primaryChartTitle'] = 'Class-wise progress';
-        $response['secondaryChartTitle'] = 'Student performance';
+        $response['primaryChartTitle'] = 'Class wise number of student and test attempted';
+        $response['secondaryChartTitle'] = 'Class wise SIRA rating';
         $response['primaryChart'] = [
             'type' => 'bar',
             'data' => [
                 'labels' => array_map(static fn (array $row): string => (string)$row['grade_label'], $gradeRows),
-                'datasets' => [[
-                    'label' => 'Average score',
-                    'data' => array_map(static fn (array $row): float => (float)$row['avg_score'], $gradeRows),
-                    'backgroundColor' => 'rgba(76, 175, 80, 0.65)',
-                ]],
+                'datasets' => [
+                    [
+                        'label' => 'Students',
+                        'data' => array_map(static fn (array $row): float => (float)$row['student_count'], $gradeRows),
+                        'backgroundColor' => 'rgba(76, 175, 80, 0.65)',
+                    ],
+                    [
+                        'label' => 'Tests attempted',
+                        'data' => array_map(static fn (array $row): float => (float)$row['test_attempted_count'], $gradeRows),
+                        'backgroundColor' => 'rgba(33, 150, 243, 0.55)',
+                    ],
+                ],
             ],
         ];
         $response['secondaryChart'] = [
             'type' => 'bar',
             'data' => [
-                'labels' => array_map(static fn (array $row): string => (string)$row['name'], $attemptRows),
+                'labels' => array_map(static fn (array $row): string => (string)$row['grade_label'], $gradeRows),
                 'datasets' => [[
-                    'label' => 'Avg score',
-                    'data' => array_map(static fn (array $row): float => (float)$row['avg_score'], $attemptRows),
+                    'label' => 'SIRA rating',
+                    'data' => array_map(static fn (array $row): float => (float)$row['sira_rating'], $gradeRows),
                     'backgroundColor' => 'rgba(33, 150, 243, 0.65)',
                 ]],
             ],
@@ -646,7 +866,7 @@ switch ($user['role']) {
             $schoolId > 0 ? ('School dashboard: ' . ($schoolName !== '' ? $schoolName : ('#' . $schoolId))) : 'No school linked to this account.',
             'Students in school: ' . $totalStudents,
             'Average test score: ' . number_format($avgScore, 1),
-            'Tests attempted: ' . $attemptCount,
+            'Overall SIRA rating: ' . number_format($overallSira, 1),
         ];
         $response['recentAchievements'] = [];
         $response['communityFeed'] = [];
@@ -658,30 +878,67 @@ switch ($user['role']) {
         ];
         $response['widgets'] = [
             [
-                'title' => 'Class progress',
+                'title' => 'Class wise SIRA rating',
                 'type' => 'list',
                 'emptyText' => 'No class data available.',
                 'items' => array_map(static function (array $row): array {
                     return [
                         'primary' => (string)$row['grade_label'],
-                        'secondary' => number_format((float)$row['avg_score'], 1) . ' avg · ' . (int)$row['student_count'] . ' students',
+                        'secondary' => number_format((float)$row['sira_rating'], 1) . ' SIRA · ' . (int)$row['student_count'] . ' students · ' . (int)$row['test_attempted_count'] . ' tests',
                     ];
                 }, $gradeRows),
             ],
             [
-                'title' => 'Student reports',
-                'type' => 'list',
+                'title' => 'Student wise SIRA rating',
+                'type' => 'studentCards',
                 'emptyText' => 'No students found.',
                 'items' => array_map(static function (array $row): array {
                     return [
                         'primary' => $row['name'],
-                        'secondary' => 'Grade ' . ($row['grade'] ?: 'Unassigned') . ' · Avg ' . number_format((float)$row['avg_score'], 1) . ' · ' . (int)$row['attempts'] . ' tests',
+                        'secondary' => 'Grade ' . ($row['grade_label'] ?: 'Unassigned') . ' · SIRA ' . number_format((float)$row['sira_score'], 1) . ' · ' . (int)$row['attempts'] . ' tests',
                         'link' => url_for('student_report.php?student_id=' . (int)$row['id']),
                         'link_label' => 'Open report',
+                        'scores' => array_map(static function (array $attempt): string {
+                            return number_format((float)$attempt['score'], 1) . ' · ' . (string)$attempt['title'];
+                        }, $row['recent_attempts'] ?? []),
                     ];
-                }, $attemptRows),
+                }, $studentsForSelected),
+            ],
+            [
+                'title' => 'Comparison with same-state schools',
+                'type' => 'table',
+                'headers' => ['School', 'Students', 'Tests', 'SIRA'],
+                'rows' => array_map(static function (array $row): array {
+                    return [
+                        trim((string)$row['name'] . (!empty($row['city']) ? ', ' . $row['city'] : '')),
+                        (string)$row['student_count'],
+                        (string)$row['test_attempted_count'],
+                        number_format((float)$row['sira_rating'], 1),
+                    ];
+                }, $comparisonRows),
             ],
         ];
+        $response['filters'] = [
+            'grades' => $gradeOptions,
+            'selectedGrade' => $selectedGrade,
+        ];
+        $response['roleSections'] = [
+            [
+                'title' => 'Class wise suggestion',
+                'paragraphs' => [
+                    'Across your school, the strongest gains usually come from focusing on the grade with the lowest SIRA and test participation first. A targeted class plan, a weekly revision rhythm, and a short remedial practice set can lift the full cohort without increasing friction.',
+                    'Use the student list to spot the classes where last-five-test momentum is falling. Those groups should receive the next intervention: revision, teacher feedback, and a short follow-up assessment so the improvement loop is visible quickly.',
+                ],
+            ],
+            [
+                'title' => 'Overall school suggestion',
+                'paragraphs' => [
+                    'Your school dashboard is strongest when class-wise performance, student-wise progress, and the state comparison are reviewed together. The objective is not just a higher score but a more balanced skill profile across academic, creative, leadership, and technical domains.',
+                    'A good next step is to assign one class-level focus and one school-wide focus each week. That keeps improvement measurable while also giving teachers, parents, and leaders a shared action plan.',
+                ],
+            ],
+        ];
+        $response['comparisonRows'] = $comparisonRows;
         $response['hideSections'] = ['community-panel', 'achievements-panel'];
 
         json_result($response);

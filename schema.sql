@@ -28,6 +28,8 @@ DROP TABLE IF EXISTS question_options;
 DROP TABLE IF EXISTS questions;
 DROP TABLE IF EXISTS path_courses;
 DROP TABLE IF EXISTS learning_paths;
+DROP TABLE IF EXISTS article_faqs;
+DROP TABLE IF EXISTS articles;
 DROP TABLE IF EXISTS attributes;
 DROP TABLE IF EXISTS sub_attributes;
 DROP TABLE IF EXISTS login_attempts;
@@ -345,6 +347,32 @@ CREATE TABLE path_courses (
   sequence_order INT,
   CONSTRAINT fk_pcourse_path FOREIGN KEY (path_id) REFERENCES learning_paths(id) ON DELETE CASCADE,
   CONSTRAINT fk_pcourse_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9️⃣ ARTICLE SYSTEM
+
+CREATE TABLE articles (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(180) NOT NULL,
+  slug VARCHAR(220) NOT NULL UNIQUE,
+  content_html LONGTEXT NOT NULL,
+  school_id INT NULL,
+  article_type ENUM('generic','school','contest','news') NOT NULL DEFAULT 'generic',
+  image_path VARCHAR(255) NULL,
+  created_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_articles_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE SET NULL,
+  CONSTRAINT fk_articles_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE article_faqs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  article_id INT NOT NULL,
+  question TEXT NOT NULL,
+  answer LONGTEXT NOT NULL,
+  sequence_order INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_article_faq_article FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Seed some basic attributes (optional)

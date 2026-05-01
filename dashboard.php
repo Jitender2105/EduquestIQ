@@ -13,7 +13,8 @@ require_once __DIR__ . '/includes_header.php';
         <h2 class="mb-0">Dashboard</h2>
         <div class="subtitle text-uppercase"><?php echo htmlspecialchars($user['role']); ?> analytics</div>
     </div>
-    <div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div id="role-controls"></div>
         <span class="me-3">Hi, <?php echo htmlspecialchars($user['name']); ?></span>
         <a href="<?php echo htmlspecialchars(url_for('logout.php')); ?>" class="btn btn-outline-secondary btn-sm">Logout</a>
     </div>
@@ -73,15 +74,33 @@ require_once __DIR__ . '/includes_header.php';
     </div>
 
     <div class="row g-3 mt-3" id="dynamic-widgets"></div>
+    <div class="row g-3 mt-3" id="role-sections"></div>
 </div>
 
 <script>
     (function () {
         const ctxPrimary = document.getElementById('primaryChart').getContext('2d');
         const ctxSecondary = document.getElementById('secondaryChart').getContext('2d');
+        const apiUrl = <?php echo json_encode(url_for('api/dashboard_data.php') . (!empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : '')); ?>;
         let primaryChart, secondaryChart;
         function esc(text) {
             return String(text == null ? '' : text);
+        }
+        function htmlEscape(text) {
+            return String(text == null ? '' : text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        function scoreChips(scores) {
+            if (!scores || !scores.length) {
+                return '<div class="small text-muted">No recent tests yet.</div>';
+            }
+            return '<div class="d-flex flex-wrap gap-2">' + scores.map(function (score) {
+                return '<span class="badge rounded-pill text-bg-light border text-dark">' + htmlEscape(score) + '</span>';
+            }).join('') + '</div>';
         }
         function renderCharts(data) {
             (data.hideSections || []).forEach(function (id) {
@@ -90,6 +109,44 @@ require_once __DIR__ . '/includes_header.php';
                     el.style.display = 'none';
                 }
             });
+
+            const controls = document.getElementById('role-controls');
+            controls.innerHTML = '';
+            if (data.filters && Array.isArray(data.filters.grades) && data.filters.grades.length > 0) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'd-inline-flex align-items-center gap-2';
+                const label = document.createElement('span');
+                label.className = 'small text-muted';
+                label.textContent = 'Filter class';
+                const select = document.createElement('select');
+                select.className = 'form-select form-select-sm';
+                select.style.minWidth = '180px';
+                const allOption = document.createElement('option');
+                allOption.value = '';
+                allOption.textContent = 'All classes';
+                select.appendChild(allOption);
+                data.filters.grades.forEach(function (grade) {
+                    const option = document.createElement('option');
+                    option.value = grade;
+                    option.textContent = grade;
+                    if (data.filters.selectedGrade && data.filters.selectedGrade === grade) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+                select.addEventListener('change', function () {
+                    const next = new URL(window.location.href);
+                    if (select.value) {
+                        next.searchParams.set('grade', select.value);
+                    } else {
+                        next.searchParams.delete('grade');
+                    }
+                    window.location.href = next.pathname + (next.search ? next.search : '');
+                });
+                wrapper.appendChild(label);
+                wrapper.appendChild(select);
+                controls.appendChild(wrapper);
+            }
 
             document.getElementById('primary-chart-title').textContent = data.primaryChartTitle || 'Overview';
             document.getElementById('secondary-chart-title').textContent = data.secondaryChartTitle || 'Progress';
@@ -214,6 +271,83 @@ require_once __DIR__ . '/includes_header.php';
                         ul.appendChild(li);
                     }
                     body.appendChild(ul);
+                } else if (w.type === 'table') {
+                    const tableWrap = document.createElement('div');
+                    tableWrap.className = 'table-responsive';
+                    const table = document.createElement('table');
+                    table.className = 'table table-sm align-middle mb-0';
+                    const thead = document.createElement('thead');
+                    const headRow = document.createElement('tr');
+                    (w.headers || []).forEach(function (heading) {
+                        const th = document.createElement('th');
+                        th.scope = 'col';
+                        th.textContent = heading;
+                        headRow.appendChild(th);
+                    });
+                    thead.appendChild(headRow);
+                    const tbody = document.createElement('tbody');
+                    (w.rows || []).forEach(function (row) {
+                        const tr = document.createElement('tr');
+                        row.forEach(function (cell) {
+                            const td = document.createElement('td');
+                            td.textContent = cell;
+                            tr.appendChild(td);
+                        });
+                        tbody.appendChild(tr);
+                    });
+                    if (!(w.rows || []).length) {
+                        const tr = document.createElement('tr');
+                        const td = document.createElement('td');
+                        td.colSpan = (w.headers || []).length || 1;
+                        td.className = 'text-muted';
+                        td.textContent = esc(w.emptyText || 'No data');
+                        tr.appendChild(td);
+                        tbody.appendChild(tr);
+                    }
+                    table.appendChild(thead);
+                    table.appendChild(tbody);
+                    tableWrap.appendChild(table);
+                    body.appendChild(tableWrap);
+                } else if (w.type === 'studentCards') {
+                    const stack = document.createElement('div');
+                    stack.className = 'vstack gap-3';
+                    (w.items || []).forEach(function (item) {
+                        const card = document.createElement('div');
+                        card.className = 'border rounded-3 p-3 bg-light';
+                        const top = document.createElement('div');
+                        top.className = 'd-flex justify-content-between align-items-start gap-2 mb-2';
+                        const left = document.createElement('div');
+                        const name = document.createElement('div');
+                        name.className = 'fw-semibold';
+                        name.textContent = item.primary || item.title || '';
+                        const meta = document.createElement('div');
+                        meta.className = 'small text-muted';
+                        meta.textContent = item.secondary || '';
+                        left.appendChild(name);
+                        left.appendChild(meta);
+                        top.appendChild(left);
+                        if (item.link) {
+                            const anchor = document.createElement('a');
+                            anchor.href = item.link;
+                            anchor.className = 'btn btn-sm btn-outline-primary';
+                            anchor.textContent = item.link_label || 'Open';
+                            top.appendChild(anchor);
+                        }
+                        card.appendChild(top);
+                        if (item.scores && item.scores.length) {
+                            const scores = document.createElement('div');
+                            scores.innerHTML = scoreChips(item.scores);
+                            card.appendChild(scores);
+                        }
+                        stack.appendChild(card);
+                    });
+                    if (!(w.items || []).length) {
+                        const empty = document.createElement('div');
+                        empty.className = 'text-muted small';
+                        empty.textContent = esc(w.emptyText || 'No data');
+                        stack.appendChild(empty);
+                    }
+                    body.appendChild(stack);
                 } else if (w.type === 'text') {
                     const p = document.createElement('p');
                     p.className = 'small text-muted mb-0';
@@ -225,9 +359,47 @@ require_once __DIR__ . '/includes_header.php';
                 col.appendChild(card);
                 widgetsWrap.appendChild(col);
             });
+
+            const sections = document.getElementById('role-sections');
+            sections.innerHTML = '';
+            (data.roleSections || []).forEach(function (section) {
+                const col = document.createElement('div');
+                col.className = 'col-md-6';
+                const card = document.createElement('div');
+                card.className = 'card card-dashboard h-100';
+                const body = document.createElement('div');
+                body.className = 'card-body';
+                const title = document.createElement('h6');
+                title.className = 'card-title mb-3';
+                title.textContent = esc(section.title || 'Section');
+                body.appendChild(title);
+
+                (section.paragraphs || []).forEach(function (para) {
+                    const p = document.createElement('p');
+                    p.className = 'small text-muted';
+                    p.textContent = esc(para);
+                    body.appendChild(p);
+                });
+
+                if (section.items && section.items.length) {
+                    const ul = document.createElement('ul');
+                    ul.className = 'list-unstyled small mb-0';
+                    section.items.forEach(function (item) {
+                        const li = document.createElement('li');
+                        li.className = 'mb-2';
+                        li.textContent = esc(item);
+                        ul.appendChild(li);
+                    });
+                    body.appendChild(ul);
+                }
+
+                card.appendChild(body);
+                col.appendChild(card);
+                sections.appendChild(col);
+            });
         }
 
-        $.getJSON('<?php echo htmlspecialchars(url_for('api/dashboard_data.php')); ?>')
+        $.getJSON(apiUrl)
             .done(function (response) {
                 renderCharts(response);
             })

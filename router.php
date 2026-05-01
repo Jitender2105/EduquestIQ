@@ -22,6 +22,12 @@ if ($uri === '/') {
     return true;
 }
 
+if (preg_match('#^/articles/([^/]+)/?$#', $uri, $matches)) {
+    $_GET['slug'] = $matches[1];
+    require __DIR__ . '/article.php';
+    return true;
+}
+
 if (is_file($path) && pathinfo($path, PATHINFO_EXTENSION) !== 'php') {
     return false;
 }

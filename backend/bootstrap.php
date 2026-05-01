@@ -47,6 +47,8 @@ function backend_schema_ready(PDO $pdo): array
         'test_settings',
         'question_blueprint',
         'content_metadata',
+        'articles',
+        'article_faqs',
     ];
 
     $missing = [];

@@ -14,6 +14,9 @@ DirectoryIndex index.php
     RewriteCond %{HTTP_HOST} ^backend\. [NC]
     RewriteRule ^$ backend/index.php [L]
 
+    # Article slug route
+    RewriteRule ^articles/([^/]+)/?$ article.php?slug=$1 [L,QSA]
+
     # Resolve extensionless URL to matching PHP file.
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
