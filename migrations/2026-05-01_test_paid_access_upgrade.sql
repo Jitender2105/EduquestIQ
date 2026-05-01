@@ -18,6 +18,22 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @has_answer_status := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'test_answers'
+    AND column_name = 'answer_status'
+);
+SET @sql := IF(
+  @has_answer_status = 0,
+  'ALTER TABLE test_answers ADD COLUMN answer_status ENUM(\'not_attempted\',\'not_answered\',\'answered\',\'marked_for_review\') NOT NULL DEFAULT \'not_attempted\' AFTER subjective_answer',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS test_purchases (
   id INT PRIMARY KEY AUTO_INCREMENT,
   test_id INT NOT NULL,
