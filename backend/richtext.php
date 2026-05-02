@@ -56,6 +56,10 @@ declare(strict_types=1);
         if (!textarea || textarea.dataset.quillReady === '1') {
             return;
         }
+        if (typeof Quill !== 'function') {
+            textarea.dataset.quillReady = '0';
+            return;
+        }
         textarea.dataset.quillReady = '1';
 
         const wrapper = document.createElement('div');
