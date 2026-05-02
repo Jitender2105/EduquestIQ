@@ -623,6 +623,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
 
         const card = document.createElement('div');
         card.className = 'eq-question-card';
+        card.dataset.questionCard = '1';
         card.dataset.questionIndex = String(idx);
         card.innerHTML = `
             <div class="eq-question-toolbar">
@@ -699,27 +700,6 @@ require_once dirname(__DIR__) . '/includes_header.php';
 
         card.querySelector('[data-question-type]').addEventListener('change', syncQuestionType);
         card.querySelector('[data-attribute-select]').addEventListener('change', populateSubAttributes);
-        card.querySelector('[data-add-option]').addEventListener('click', function () {
-            const nextIndex = card.querySelectorAll('[data-option-row]').length;
-            optionsList.insertAdjacentHTML('beforeend', optionRowHtml(idx, nextIndex, { text: '', is_correct: 0 }));
-            initEditors(optionsList);
-        });
-        card.querySelector('[data-remove-question]').addEventListener('click', function () {
-            card.remove();
-            if (!questionsBuilder.querySelector('[data-question-card]')) {
-                addQuestion();
-            }
-        });
-        optionsList.addEventListener('click', function (event) {
-            const target = event.target.closest('[data-remove-option]');
-            if (!target) {
-                return;
-            }
-            const row = target.closest('[data-option-row]');
-            if (row) {
-                row.remove();
-            }
-        });
 
         populateSubAttributes();
         syncQuestionType();
@@ -743,6 +723,42 @@ require_once dirname(__DIR__) . '/includes_header.php';
             addQuestion();
         }
     }
+
+    questionsBuilder.addEventListener('click', function (event) {
+        const addOptionBtn = event.target.closest('[data-add-option]');
+        if (addOptionBtn) {
+            const card = addOptionBtn.closest('[data-question-card]');
+            if (!card) {
+                return;
+            }
+            const optionsList = card.querySelector('[data-options-list]');
+            const nextIndex = card.querySelectorAll('[data-option-row]').length;
+            const questionIndex = card.dataset.questionIndex || '0';
+            optionsList.insertAdjacentHTML('beforeend', optionRowHtml(questionIndex, nextIndex, { text: '', is_correct: 0 }));
+            initEditors(optionsList);
+            return;
+        }
+
+        const removeOptionBtn = event.target.closest('[data-remove-option]');
+        if (removeOptionBtn) {
+            const row = removeOptionBtn.closest('[data-option-row]');
+            if (row) {
+                row.remove();
+            }
+            return;
+        }
+
+        const removeQuestionBtn = event.target.closest('[data-remove-question]');
+        if (removeQuestionBtn) {
+            const card = removeQuestionBtn.closest('[data-question-card]');
+            if (card) {
+                card.remove();
+            }
+            if (!questionsBuilder.querySelector('[data-question-card]')) {
+                addQuestion();
+            }
+        }
+    });
 
     btnAddTop.addEventListener('click', function () { addQuestion(); });
     btnAddMid.addEventListener('click', function () { addQuestion(); });
