@@ -6,21 +6,38 @@ require_once __DIR__ . '/includes_sira.php';
 
 $user = require_auth(['student']);
 $attemptId = isset($_GET['attempt_id']) ? (int)$_GET['attempt_id'] : 0;
-if ($attemptId <= 0) {
-    header('Location: ' . url_for('tests.php'));
-    exit;
-}
-
 $pdo = get_pdo();
-$report = sira_build_test_report($pdo, $attemptId);
-if (!$report) {
-    header('Location: ' . url_for('tests.php'));
-    exit;
+$report = $attemptId > 0 ? sira_build_test_report($pdo, $attemptId) : null;
+$reportError = null;
+
+if ($attemptId <= 0) {
+    $reportError = 'No attempt was selected.';
+} elseif (!$report) {
+    $reportError = 'We could not find a detailed SIRA report for this attempt yet.';
+} elseif ((int)$report['attempt']['student_id'] !== (int)$user['sub']) {
+    $reportError = 'You can view only your own SIRA reports.';
 }
 
-if ((int)$report['attempt']['student_id'] !== (int)$user['sub']) {
-    header('Location: ' . url_for('tests.php'));
-    exit;
+if ($reportError !== null) {
+    ?>
+    <div class="eq-page-head">
+        <h2>SIRA Report</h2>
+        <p class="subtitle">Detailed test reports open here after each submission.</p>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+            <div class="alert alert-warning mb-0">
+                <?php echo htmlspecialchars($reportError); ?>
+                <div class="mt-2">
+                    <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('tests.php')); ?>">Back to tests</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+    require_once __DIR__ . '/includes_footer.php';
+    return;
 }
 
 $statusCounts = $report['status_counts'];
