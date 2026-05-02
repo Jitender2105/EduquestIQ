@@ -458,7 +458,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <div class="eq-muted">Name, description, instruction, availability, and questions all in one screen.</div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-question-top">Add More Question</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-question-top" onclick="window.eqTestsAddQuestion && window.eqTestsAddQuestion(); return false;">Add More Question</button>
                     <button type="submit" class="btn btn-primary btn-sm">Save Test</button>
                 </div>
             </div>
@@ -507,13 +507,13 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <h5 class="mb-0">Questions</h5>
                     <div class="eq-muted">Add questions, options, and correct answers directly in this form.</div>
                 </div>
-                <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-question">Add More Question</button>
+                <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-question" onclick="window.eqTestsAddQuestion && window.eqTestsAddQuestion(); return false;">Add More Question</button>
             </div>
 
             <div id="questions-builder" class="eq-questions-list"></div>
 
             <div class="mt-3 d-flex justify-content-end gap-2">
-                <button type="button" class="btn btn-outline-primary" id="btn-add-question-bottom">Add More Question</button>
+                <button type="button" class="btn btn-outline-primary" id="btn-add-question-bottom" onclick="window.eqTestsAddQuestion && window.eqTestsAddQuestion(); return false;">Add More Question</button>
                 <button type="submit" class="btn btn-primary">Save Test</button>
             </div>
         </div>
@@ -568,10 +568,11 @@ require_once dirname(__DIR__) . '/includes_header.php';
         subAttributes: <?php echo json_encode($subAttributes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
     };
 
-    const questionsBuilder = document.getElementById('questions-builder');
-    const btnAddTop = document.getElementById('btn-add-question-top');
-    const btnAddMid = document.getElementById('btn-add-question');
-    const btnAddBottom = document.getElementById('btn-add-question-bottom');
+    const state = {
+        questionsBuilder: null,
+        questionSeed: 0,
+        initialized: false
+    };
     let questionSeed = 0;
 
     const subAttributeMap = {};
@@ -585,8 +586,20 @@ require_once dirname(__DIR__) . '/includes_header.php';
 
     function initEditors(root) {
         if (window.EQRichText) {
-            window.EQRichText.init(root);
+            try {
+                window.EQRichText.init(root);
+            } catch (error) {
+                console.warn('EQRichText init skipped', error);
+            }
         }
+    }
+
+    function getQuestionsBuilder() {
+        if (state.questionsBuilder && document.contains(state.questionsBuilder)) {
+            return state.questionsBuilder;
+        }
+        state.questionsBuilder = document.getElementById('questions-builder') || document.querySelector('.eq-questions-list');
+        return state.questionsBuilder;
     }
 
     function optionRowHtml(questionIndex, optionIndex, option = {}) {
@@ -707,24 +720,36 @@ require_once dirname(__DIR__) . '/includes_header.php';
     }
 
     function addQuestion(question = {}) {
+        const builder = getQuestionsBuilder();
+        if (!builder) {
+            return null;
+        }
         const card = createQuestionCard(question);
-        questionsBuilder.appendChild(card);
+        builder.appendChild(card);
         initEditors(card);
         return card;
     }
 
     function renderBundle() {
-        questionsBuilder.innerHTML = '';
+        const builder = getQuestionsBuilder();
+        if (!builder) {
+            return;
+        }
+        builder.innerHTML = '';
         questionSeed = 0;
         (pageData.bundle.questions || []).forEach(function (question) {
             addQuestion(question);
         });
-        if (!questionsBuilder.querySelector('[data-question-card]')) {
+        if (!builder.querySelector('[data-question-card]')) {
             addQuestion();
         }
     }
 
-    questionsBuilder.addEventListener('click', function (event) {
+    function handleBuilderClick(event) {
+        const builder = getQuestionsBuilder();
+        if (!builder) {
+            return;
+        }
         const addOptionBtn = event.target.closest('[data-add-option]');
         if (addOptionBtn) {
             const card = addOptionBtn.closest('[data-question-card]');
@@ -754,22 +779,47 @@ require_once dirname(__DIR__) . '/includes_header.php';
             if (card) {
                 card.remove();
             }
-            if (!questionsBuilder.querySelector('[data-question-card]')) {
+            if (!builder.querySelector('[data-question-card]')) {
                 addQuestion();
             }
         }
-    });
+    }
 
-    btnAddTop.addEventListener('click', function () { addQuestion(); });
-    btnAddMid.addEventListener('click', function () { addQuestion(); });
-    btnAddBottom.addEventListener('click', function () { addQuestion(); });
-
-    document.getElementById('test-builder-form').addEventListener('submit', function () {
-        if (window.EQRichText) {
-            window.EQRichText.init(document);
+    function bindBuilderEvents() {
+        if (state.initialized) {
+            return;
         }
-    });
+        const builder = getQuestionsBuilder();
+        const form = document.getElementById('test-builder-form');
+        if (builder) {
+            builder.addEventListener('click', handleBuilderClick);
+        }
+        if (form) {
+            form.addEventListener('submit', function () {
+                if (window.EQRichText) {
+                    try {
+                        window.EQRichText.init(document);
+                    } catch (error) {
+                        console.warn('EQRichText submit sync skipped', error);
+                    }
+                }
+            });
+        }
+        state.initialized = true;
+    }
 
+    window.eqTestsAddQuestion = function () {
+        const created = addQuestion();
+        const builder = getQuestionsBuilder();
+        if (created && builder) {
+            builder.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+        return false;
+    };
+
+    window.eqTestsRenderBundle = renderBundle;
+
+    bindBuilderEvents();
     renderBundle();
     initEditors(document);
 })();
