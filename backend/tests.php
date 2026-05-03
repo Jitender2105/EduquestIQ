@@ -564,7 +564,6 @@ require_once dirname(__DIR__) . '/includes_header.php';
 </div>
 
 <?php require __DIR__ . '/richtext.php'; ?>
-<script src="<?php echo htmlspecialchars(url_for('assets/js/backend-tests.js')); ?>" defer></script>
 <script>
 (function () {
     function parseJsonAttribute(value, fallback) {
