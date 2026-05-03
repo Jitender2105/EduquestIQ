@@ -39,6 +39,19 @@ $similar = $featured
     }))
     : [];
 
+function article_format_date(?string $value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+    try {
+        return (new DateTimeImmutable($value))->format('d M Y');
+    } catch (Throwable $e) {
+        return $value;
+    }
+}
+
 if (!$articles && !$legacyArticles):
 ?>
 <div class="eq-page-head">
@@ -71,6 +84,10 @@ endif;
 ?>
 
 <style>
+    .eq-article-page {
+        max-width: 1180px;
+        margin: 0 auto;
+    }
     .eq-article-list-shell {
         display: grid;
         gap: 22px;
@@ -101,16 +118,94 @@ endif;
         box-shadow: 0 16px 36px rgba(37, 49, 104, 0.08);
         height: 100%;
         background: #fff;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .eq-article-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 20px 40px rgba(37, 49, 104, 0.12);
     }
     .eq-article-card img {
         width: 100%;
-        height: 190px;
+        height: 214px;
         object-fit: cover;
     }
     .eq-article-card .card-body {
         display: flex;
         flex-direction: column;
         gap: 10px;
+        padding: 18px;
+    }
+    .eq-article-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        background: rgba(67, 116, 255, 0.08);
+        color: #3b53c0;
+        font-size: 0.76rem;
+        font-weight: 700;
+        padding: 6px 10px;
+    }
+    .eq-article-meta-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .eq-article-card h5 {
+        font-size: 1.08rem;
+        line-height: 1.35;
+    }
+    .eq-article-card p {
+        line-height: 1.65;
+        font-size: 0.92rem;
+    }
+    .eq-article-strip {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 18px;
+        align-items: stretch;
+    }
+    .eq-article-side-panel {
+        background: #fff;
+        color: #18214a;
+        border-radius: 24px;
+        padding: 18px;
+        box-shadow: 0 16px 36px rgba(37, 49, 104, 0.09);
+    }
+    .eq-article-side-panel h4 {
+        margin-bottom: 8px;
+    }
+    .eq-article-side-panel .small {
+        color: #6f789b;
+    }
+    .eq-article-quick-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+    }
+    .eq-article-quick-item {
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: #f6f8ff;
+        border: 1px solid rgba(47, 59, 120, 0.08);
+    }
+    .eq-article-quick-item strong {
+        display: block;
+        margin-bottom: 4px;
+    }
+    .eq-article-grid-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: end;
+        flex-wrap: wrap;
+    }
+    @media (max-width: 991px) {
+        .eq-article-strip {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
@@ -119,19 +214,20 @@ endif;
     <p class="subtitle">Public learning articles with Vedantu-style reading blocks, FAQs, and related content.</p>
 </div>
 
+<div class="eq-article-page">
 <div class="eq-article-list-shell">
     <section class="eq-article-list-hero">
-        <div class="row align-items-center g-4">
-            <div class="col-lg-7">
-                <div class="badge text-bg-light text-dark mb-3">Knowledge Hub</div>
+        <div class="eq-article-strip">
+            <div>
+                <div class="eq-article-chip mb-3">Knowledge Hub</div>
                 <h1 class="display-6 fw-bold">Learn with articles built for study rhythm, exam prep, and parent support.</h1>
                 <p class="lead mb-0">Each article can open as a clean slug-based page with rich content, FAQ support, similar article suggestions, and latest updates.</p>
             </div>
-            <div class="col-lg-5">
+            <div>
                 <?php if ($featured): ?>
-                    <div class="bg-white text-dark rounded-4 p-3 shadow-sm">
+                    <div class="eq-article-side-panel">
                         <div class="small text-uppercase text-primary fw-semibold mb-2">Featured article</div>
-                        <div class="d-flex gap-3">
+                        <div class="d-flex gap-3 align-items-start">
                             <?php if (!empty($featured['image_path'])): ?>
                                 <img src="<?php echo htmlspecialchars(url_for((string)$featured['image_path'])); ?>" alt="" class="rounded-3 flex-shrink-0" style="width:90px;height:90px;object-fit:cover;">
                             <?php endif; ?>
@@ -139,6 +235,16 @@ endif;
                                 <div class="fw-bold"><?php echo htmlspecialchars((string)$featured['title']); ?></div>
                                 <div class="small text-muted mb-2"><?php echo htmlspecialchars(article_excerpt((string)$featured['content_html'], 120)); ?></div>
                                 <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('articles/' . (string)$featured['slug'])); ?>">Read article</a>
+                            </div>
+                        </div>
+                        <div class="eq-article-quick-list">
+                            <div class="eq-article-quick-item">
+                                <strong>Latest updates</strong>
+                                <span class="small">Fresh student, parent, and exam-prep reading appears here automatically.</span>
+                            </div>
+                            <div class="eq-article-quick-item">
+                                <strong>Related reading</strong>
+                                <span class="small">Every article page surfaces matching posts by type and school context.</span>
                             </div>
                         </div>
                     </div>
@@ -149,9 +255,12 @@ endif;
 
     <?php if ($articles): ?>
         <section>
-            <div class="eq-page-head text-start mb-3">
-                <h3>Latest Articles</h3>
-                <p class="subtitle">Fresh reading, curated for students, parents, and teachers.</p>
+            <div class="eq-article-grid-header mb-3">
+                <div class="eq-page-head text-start mb-0 flex-grow-1">
+                    <h3>Latest Articles</h3>
+                    <p class="subtitle">Fresh reading, curated for students, parents, and teachers.</p>
+                </div>
+                <div class="small text-muted">Showing <?php echo count($articles); ?> published article<?php echo count($articles) === 1 ? '' : 's'; ?></div>
             </div>
             <div class="row g-3">
                 <?php foreach (array_slice($articles, 0, 6) as $article): ?>
@@ -165,9 +274,9 @@ endif;
                                 </div>
                             <?php endif; ?>
                             <div class="card-body">
-                                <div class="d-flex justify-content-between gap-2">
-                                    <span class="badge text-bg-light border text-capitalize"><?php echo htmlspecialchars((string)$article['article_type']); ?></span>
-                                    <span class="small text-muted"><?php echo htmlspecialchars((string)$article['created_at']); ?></span>
+                                <div class="eq-article-meta-row">
+                                    <span class="eq-article-chip text-capitalize"><?php echo htmlspecialchars((string)$article['article_type']); ?></span>
+                                    <span class="small text-muted"><?php echo htmlspecialchars(article_format_date((string)$article['created_at'])); ?></span>
                                 </div>
                                 <h5 class="mb-0"><?php echo htmlspecialchars((string)$article['title']); ?></h5>
                                 <p class="text-muted mb-0"><?php echo htmlspecialchars(article_excerpt((string)$article['content_html'], 150)); ?></p>
@@ -238,6 +347,7 @@ endif;
             </div>
         </section>
     <?php endif; ?>
+</div>
 </div>
 
 <?php

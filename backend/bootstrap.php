@@ -32,6 +32,16 @@ function backend_is_super_admin(array $user): bool
     return ($user['role'] ?? '') === 'super_admin';
 }
 
+function backend_can_edit(array $user): bool
+{
+    return backend_is_super_admin($user);
+}
+
+function backend_is_read_only(array $user): bool
+{
+    return backend_is_admin($user) && !backend_can_edit($user);
+}
+
 function backend_require_admin(array $user): void
 {
     if (!backend_is_admin($user)) {
@@ -39,6 +49,25 @@ function backend_require_admin(array $user): void
         echo 'Forbidden. Content admin only.';
         exit;
     }
+
+    if (backend_is_super_admin($user)) {
+        return;
+    }
+
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if (!in_array($method, ['GET', 'HEAD'], true)) {
+        http_response_code(403);
+        echo 'Forbidden. Super admin only for changes.';
+        exit;
+    }
+}
+
+function backend_readonly_notice(array $user, string $scope = 'this backend module'): void
+{
+    if (!backend_is_read_only($user)) {
+        return;
+    }
+    echo '<div class="alert alert-warning">Read-only access enabled. Only super admins can make changes in ' . htmlspecialchars($scope) . '.</div>';
 }
 
 function backend_schema_ready(PDO $pdo): array
@@ -69,3 +98,5 @@ function backend_schema_ready(PDO $pdo): array
 
     return ['ready' => !$missing, 'missing' => $missing];
 }
+
+$GLOBALS['backendReadOnly'] = backend_is_read_only(backend_user());

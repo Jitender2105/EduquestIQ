@@ -53,6 +53,7 @@ $pageMeta = [
 $meta = $pageMeta[$scriptPath] ?? $pageMeta[$currentPage] ?? null;
 $metaTitle = $GLOBALS['metaTitleOverride'] ?? ($meta[0] ?? 'EduquestIQ | Learning Platform');
 $metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'EduquestIQ is a skills-first LMS for students, parents, teachers, and school administrators.');
+$backendReadOnly = !empty($GLOBALS['backendReadOnly']) && str_starts_with($scriptPath, 'backend/');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1106,9 +1107,24 @@ $metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'Eduquest
         @media (prefers-reduced-motion: reduce) {
             * { scroll-behavior: auto !important; }
         }
+
+        <?php if ($backendReadOnly): ?>
+        .eq-backend-readonly form :is(input, select, textarea, button) {
+            pointer-events: none;
+        }
+        .eq-backend-readonly form :is(input, select, textarea, button):not([type="hidden"]) {
+            opacity: 0.72;
+        }
+        .eq-backend-readonly .eq-allow-nav,
+        .eq-backend-readonly a,
+        .eq-backend-readonly button[data-bs-toggle],
+        .eq-backend-readonly button.accordion-button {
+            pointer-events: auto;
+        }
+        <?php endif; ?>
     </style>
 </head>
-<body>
+<body<?php echo $backendReadOnly ? ' class="eq-backend-readonly"' : ''; ?>>
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
     <div class="container">
         <a class="navbar-brand" href="<?php echo htmlspecialchars(url_for('index.php')); ?>">

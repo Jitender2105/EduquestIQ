@@ -173,7 +173,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
                         <h5 class="card-title mb-1">Create Article</h5>
                         <div class="text-muted small">Bootstrap-form layout with Quill content and FAQ repeater.</div>
                     </div>
-                    <span class="badge text-bg-primary">content_admin only</span>
+                    <span class="badge text-bg-primary"><?php echo backend_can_edit($user) ? 'super_admin editing' : 'read-only for content_admin'; ?></span>
                 </div>
 
                 <div class="form-group mb-3">

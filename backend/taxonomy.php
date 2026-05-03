@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
         $errors[] = 'Invalid CSRF token.';
     } else {
+        backend_require_admin($user);
         $action = (string)($_POST['action'] ?? '');
         try {
             if ($action === 'subject') {

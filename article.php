@@ -105,9 +105,26 @@ if (!empty($article['school_city']) || !empty($article['school_state'])) {
     $schoolLabel .= ($schoolLabel !== '' ? ' · ' : '') . trim((string)$article['school_city'] . (!empty($article['school_city']) && !empty($article['school_state']) ? ', ' : '') . (string)$article['school_state']);
 }
 $schoolLabel = trim($schoolLabel);
+
+function article_detail_date(?string $value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+    try {
+        return (new DateTimeImmutable($value))->format('d M Y');
+    } catch (Throwable $e) {
+        return $value;
+    }
+}
 ?>
 
 <style>
+    .eq-article-page {
+        max-width: 1180px;
+        margin: 0 auto;
+    }
     .eq-article-shell {
         display: grid;
         gap: 20px;
@@ -145,18 +162,57 @@ $schoolLabel = trim($schoolLabel);
         border-radius: 24px;
         border: 1px solid rgba(47, 59, 120, 0.08);
         box-shadow: 0 18px 40px rgba(37, 49, 104, 0.08);
-        padding: 22px;
+        padding: 28px;
+        line-height: 1.8;
+        font-size: 1rem;
     }
     .eq-article-content h2,
     .eq-article-content h3,
     .eq-article-content h4 {
         margin-top: 1.2rem;
+        margin-bottom: 0.8rem;
     }
     .eq-article-sidebar-card {
         background: #fff;
         border-radius: 22px;
         border: 1px solid rgba(47, 59, 120, 0.08);
         box-shadow: 0 16px 36px rgba(37, 49, 104, 0.07);
+    }
+    .eq-article-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.16);
+        border: 1px solid rgba(255,255,255,0.2);
+        padding: 7px 12px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-bottom: 14px;
+    }
+    .eq-article-lead {
+        font-size: 1.04rem;
+        color: rgba(255,255,255,0.88);
+        line-height: 1.8;
+    }
+    .eq-article-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 16px;
+    }
+    .eq-article-content blockquote {
+        margin: 1rem 0;
+        padding: 1rem 1.2rem;
+        border-left: 4px solid #5d47ff;
+        background: #f7f8ff;
+        border-radius: 0 14px 14px 0;
+    }
+    .eq-article-content ul,
+    .eq-article-content ol {
+        padding-left: 1.25rem;
+    }
+    .eq-article-side-list a {
+        text-decoration: none;
     }
 </style>
 
@@ -165,6 +221,7 @@ $schoolLabel = trim($schoolLabel);
     <p class="subtitle">Public article view with FAQ, related reading, and latest updates.</p>
 </div>
 
+<div class="eq-article-page">
 <div class="eq-article-shell">
     <section class="eq-article-hero">
         <div class="row g-0">
@@ -173,15 +230,17 @@ $schoolLabel = trim($schoolLabel);
             </div>
             <div class="col-lg-7">
                 <div class="eq-article-hero-body">
+                    <div class="eq-article-kicker">EduquestIQ Article</div>
                     <div class="eq-article-meta">
                         <span class="badge text-bg-light text-dark"><?php echo htmlspecialchars(ucfirst((string)$article['article_type'])); ?></span>
                         <?php if ($schoolLabel !== ''): ?>
                             <span class="badge text-bg-light text-dark"><?php echo htmlspecialchars($schoolLabel); ?></span>
                         <?php endif; ?>
                         <span class="badge text-bg-light text-dark">By <?php echo htmlspecialchars((string)$article['creator_name']); ?></span>
+                        <span class="badge text-bg-light text-dark"><?php echo htmlspecialchars(article_detail_date((string)$article['created_at'])); ?></span>
                     </div>
                     <h1 class="display-6 fw-bold"><?php echo htmlspecialchars($article['title']); ?></h1>
-                    <p class="lead mb-0"><?php echo htmlspecialchars(article_excerpt((string)$article['content_html'], 220)); ?></p>
+                    <p class="eq-article-lead mb-0"><?php echo htmlspecialchars(article_excerpt((string)$article['content_html'], 220)); ?></p>
                 </div>
             </div>
         </div>
@@ -225,14 +284,14 @@ $schoolLabel = trim($schoolLabel);
                 <ul class="list-unstyled small mb-0">
                     <li class="mb-2"><strong>Slug:</strong> <code><?php echo htmlspecialchars(url_for('articles/' . (string)$article['slug'])); ?></code></li>
                     <li class="mb-2"><strong>Created by:</strong> <?php echo htmlspecialchars((string)$article['creator_name']); ?></li>
-                    <li class="mb-2"><strong>Created:</strong> <?php echo htmlspecialchars((string)$article['created_at']); ?></li>
+                    <li class="mb-2"><strong>Created:</strong> <?php echo htmlspecialchars(article_detail_date((string)$article['created_at'])); ?></li>
                     <?php if ($schoolLabel !== ''): ?>
                         <li class="mb-2"><strong>School:</strong> <?php echo htmlspecialchars($schoolLabel); ?></li>
                     <?php endif; ?>
                 </ul>
             </div>
 
-            <div class="eq-article-sidebar-card p-3 mb-4">
+            <div class="eq-article-sidebar-card p-3 mb-4 eq-article-side-list">
                 <h5 class="mb-3">Similar Articles</h5>
                 <?php if (!$similarArticles): ?>
                     <p class="text-muted mb-0">No similar articles yet.</p>
@@ -259,7 +318,7 @@ $schoolLabel = trim($schoolLabel);
                 <?php endif; ?>
             </div>
 
-            <div class="eq-article-sidebar-card p-3">
+            <div class="eq-article-sidebar-card p-3 eq-article-side-list">
                 <h5 class="mb-3">Latest Articles</h5>
                 <?php if (!$latestArticles): ?>
                     <p class="text-muted mb-0">No latest articles yet.</p>
@@ -276,6 +335,7 @@ $schoolLabel = trim($schoolLabel);
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <?php require_once __DIR__ . '/includes_footer.php'; ?>

@@ -88,6 +88,22 @@ function backend_tests_bundle_from_post(array $source): array
     return $bundle;
 }
 
+function backend_tests_blank_question(): array
+{
+    return [
+        'title' => '',
+        'question_type' => 'mcq',
+        'marks' => '1',
+        'attribute_id' => '',
+        'sub_attribute_id' => '',
+        'weight' => '1.00',
+        'options' => [
+            ['text' => '', 'is_correct' => 1],
+            ['text' => '', 'is_correct' => 0],
+        ],
+    ];
+}
+
 function backend_tests_render_question_card(int $idx, array $question, array $attributes, array $subAttributes): string
 {
     $title = (string)($question['title'] ?? '');
@@ -115,7 +131,7 @@ function backend_tests_render_question_card(int $idx, array $question, array $at
     <div class="eq-question-card" data-question-card="1" data-question-index="<?php echo (int)$idx; ?>">
         <div class="eq-question-toolbar">
             <h5>Question <?php echo (int)($idx + 1); ?></h5>
-            <button type="button" class="btn btn-outline-danger btn-sm" data-remove-question>Remove question</button>
+            <button type="submit" class="btn btn-outline-danger btn-sm" name="action" value="remove_question:<?php echo (int)$idx; ?>" formnovalidate>Remove question</button>
         </div>
 
         <div class="row g-3">
@@ -165,7 +181,7 @@ function backend_tests_render_question_card(int $idx, array $question, array $at
         <div class="mt-3" data-options-wrap<?php echo $type === 'mcq' ? '' : ' style="display:none"'; ?>>
             <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
                 <strong>Options</strong>
-                <button type="button" class="btn btn-outline-primary btn-sm" data-add-option>Add option</button>
+                <button type="submit" class="btn btn-outline-primary btn-sm" name="action" value="add_option:<?php echo (int)$idx; ?>" formnovalidate>Add option</button>
             </div>
             <div data-options-list class="d-grid gap-2">
                 <?php foreach ($options as $optionIndex => $option): ?>
@@ -174,7 +190,7 @@ function backend_tests_render_question_card(int $idx, array $question, array $at
                         <div class="eq-option-card">
                             <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
                                 <strong class="small text-uppercase text-muted">Option <?php echo (int)($optionIndex + 1); ?></strong>
-                                <button type="button" class="btn btn-outline-danger btn-sm" data-remove-option>Remove</button>
+                                <button type="submit" class="btn btn-outline-danger btn-sm" name="action" value="remove_option:<?php echo (int)$idx; ?>:<?php echo (int)$optionIndex; ?>" formnovalidate>Remove</button>
                             </div>
                             <textarea class="form-control eq-richtext" data-richtext name="questions[<?php echo (int)$idx; ?>][options][<?php echo (int)$optionIndex; ?>][text]"><?php echo htmlspecialchars($optionText); ?></textarea>
                             <div class="form-check mt-2">
@@ -251,20 +267,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
         $errors[] = 'Invalid CSRF token.';
     } else {
+        backend_require_admin($user);
         $bundle = backend_tests_bundle_from_post($_POST);
         if ($action === 'add_question') {
-            $bundle['questions'][] = [
-                'title' => '',
-                'question_type' => 'mcq',
-                'marks' => '1',
-                'attribute_id' => '',
-                'sub_attribute_id' => '',
-                'weight' => '1.00',
-                'options' => [
-                    ['text' => '', 'is_correct' => 1],
-                    ['text' => '', 'is_correct' => 0],
-                ],
-            ];
+            $bundle['questions'][] = backend_tests_blank_question();
+        } elseif (str_starts_with($action, 'add_option:')) {
+            $questionIndex = (int)substr($action, strlen('add_option:'));
+            if (isset($bundle['questions'][$questionIndex])) {
+                $bundle['questions'][$questionIndex]['options'][] = ['text' => '', 'is_correct' => 0];
+            }
+        } elseif (str_starts_with($action, 'remove_question:')) {
+            $questionIndex = (int)substr($action, strlen('remove_question:'));
+            if (isset($bundle['questions'][$questionIndex])) {
+                unset($bundle['questions'][$questionIndex]);
+                $bundle['questions'] = array_values($bundle['questions']);
+            }
+            if ($bundle['questions'] === []) {
+                $bundle['questions'][] = backend_tests_blank_question();
+            }
+        } elseif (str_starts_with($action, 'remove_option:')) {
+            $parts = explode(':', $action);
+            $questionIndex = isset($parts[1]) ? (int)$parts[1] : -1;
+            $optionIndex = isset($parts[2]) ? (int)$parts[2] : -1;
+            if (isset($bundle['questions'][$questionIndex]['options'][$optionIndex])) {
+                unset($bundle['questions'][$questionIndex]['options'][$optionIndex]);
+                $bundle['questions'][$questionIndex]['options'] = array_values($bundle['questions'][$questionIndex]['options']);
+            }
+            if (isset($bundle['questions'][$questionIndex]) && count($bundle['questions'][$questionIndex]['options']) < 2) {
+                while (count($bundle['questions'][$questionIndex]['options']) < 2) {
+                    $bundle['questions'][$questionIndex]['options'][] = ['text' => '', 'is_correct' => 0];
+                }
+                $bundle['questions'][$questionIndex]['options'][0]['is_correct'] = 1;
+            }
         } else {
             if ($bundle['title'] === '') {
                 $errors[] = 'Test name is required.';
