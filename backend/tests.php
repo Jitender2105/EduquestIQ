@@ -73,6 +73,124 @@ function backend_tests_default_bundle(): array
     ];
 }
 
+function backend_tests_bundle_from_post(array $source): array
+{
+    $bundle = backend_tests_default_bundle();
+    $bundle['title'] = trim((string)($source['title'] ?? ''));
+    $bundle['description'] = (string)($source['description'] ?? '');
+    $bundle['instruction'] = (string)($source['instruction'] ?? '');
+    $bundle['duration_minutes'] = (string)($source['duration_minutes'] ?? '60');
+    $bundle['price_inr'] = (string)($source['price_inr'] ?? '0.00');
+    $bundle['start_at'] = (string)($source['start_at'] ?? '');
+    $bundle['end_at'] = (string)($source['end_at'] ?? '');
+    $bundle['test_year'] = trim((string)($source['test_year'] ?? ''));
+    $bundle['questions'] = backend_tests_clean_questions($source['questions'] ?? []);
+    return $bundle;
+}
+
+function backend_tests_render_question_card(int $idx, array $question, array $attributes, array $subAttributes): string
+{
+    $title = (string)($question['title'] ?? '');
+    $type = (string)($question['question_type'] ?? 'mcq');
+    $marks = (string)($question['marks'] ?? '1');
+    $attributeId = (string)($question['attribute_id'] ?? '');
+    $subAttributeId = (string)($question['sub_attribute_id'] ?? '');
+    $weight = (string)($question['weight'] ?? '1.00');
+    $options = (!empty($question['options']) && is_array($question['options']))
+        ? $question['options']
+        : [
+            ['text' => '', 'is_correct' => 1],
+            ['text' => '', 'is_correct' => 0],
+        ];
+
+    $availableSubAttributes = [];
+    foreach ($subAttributes as $subAttribute) {
+        if ((string)($subAttribute['attribute_id'] ?? '') === $attributeId) {
+            $availableSubAttributes[] = $subAttribute;
+        }
+    }
+
+    ob_start();
+    ?>
+    <div class="eq-question-card" data-question-card="1" data-question-index="<?php echo (int)$idx; ?>">
+        <div class="eq-question-toolbar">
+            <h5>Question <?php echo (int)($idx + 1); ?></h5>
+            <button type="button" class="btn btn-outline-danger btn-sm" data-remove-question>Remove question</button>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="eq-inline-label">Question title</div>
+                <textarea class="form-control eq-richtext" data-richtext name="questions[<?php echo (int)$idx; ?>][title]"><?php echo htmlspecialchars($title); ?></textarea>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Question type</label>
+                <select class="form-select" name="questions[<?php echo (int)$idx; ?>][question_type]" data-question-type>
+                    <option value="mcq"<?php echo $type === 'mcq' ? ' selected' : ''; ?>>MCQ</option>
+                    <option value="subjective"<?php echo $type === 'subjective' ? ' selected' : ''; ?>>Subjective</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Marks</label>
+                <input class="form-control" type="number" min="1" name="questions[<?php echo (int)$idx; ?>][marks]" value="<?php echo htmlspecialchars($marks); ?>">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Weight</label>
+                <input class="form-control" type="number" step="0.01" min="0" name="questions[<?php echo (int)$idx; ?>][weight]" value="<?php echo htmlspecialchars($weight); ?>">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Attribute</label>
+                <select class="form-select" name="questions[<?php echo (int)$idx; ?>][attribute_id]" data-attribute-select>
+                    <option value="">Select attribute</option>
+                    <?php foreach ($attributes as $attribute): ?>
+                        <option value="<?php echo (int)$attribute['id']; ?>"<?php echo (string)$attributeId === (string)$attribute['id'] ? ' selected' : ''; ?>>
+                            <?php echo htmlspecialchars((string)$attribute['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Sub-attribute</label>
+                <select class="form-select" name="questions[<?php echo (int)$idx; ?>][sub_attribute_id]" data-sub-attribute-select>
+                    <option value="">Select sub-attribute</option>
+                    <?php foreach ($availableSubAttributes as $subAttribute): ?>
+                        <option value="<?php echo (int)$subAttribute['id']; ?>"<?php echo (string)$subAttributeId === (string)$subAttribute['id'] ? ' selected' : ''; ?>>
+                            <?php echo htmlspecialchars((string)$subAttribute['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+
+        <div class="mt-3" data-options-wrap<?php echo $type === 'mcq' ? '' : ' style="display:none"'; ?>>
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                <strong>Options</strong>
+                <button type="button" class="btn btn-outline-primary btn-sm" data-add-option>Add option</button>
+            </div>
+            <div data-options-list class="d-grid gap-2">
+                <?php foreach ($options as $optionIndex => $option): ?>
+                    <?php $optionText = (string)($option['text'] ?? ''); ?>
+                    <div class="eq-option-row" data-option-row>
+                        <div class="eq-option-card">
+                            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                <strong class="small text-uppercase text-muted">Option <?php echo (int)($optionIndex + 1); ?></strong>
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-remove-option>Remove</button>
+                            </div>
+                            <textarea class="form-control eq-richtext" data-richtext name="questions[<?php echo (int)$idx; ?>][options][<?php echo (int)$optionIndex; ?>][text]"><?php echo htmlspecialchars($optionText); ?></textarea>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="q<?php echo (int)$idx; ?>_opt<?php echo (int)$optionIndex; ?>_correct" name="questions[<?php echo (int)$idx; ?>][options][<?php echo (int)$optionIndex; ?>][is_correct]" value="1"<?php echo !empty($option['is_correct']) ? ' checked' : ''; ?>>
+                                <label class="form-check-label" for="q<?php echo (int)$idx; ?>_opt<?php echo (int)$optionIndex; ?>_correct">is_correct option</label>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <?php
+    return (string)ob_get_clean();
+}
+
 function backend_tests_clean_questions(array $questions): array
 {
     $clean = [];
@@ -129,182 +247,189 @@ $errors = [];
 $success = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = (string)($_POST['action'] ?? 'save_bundle');
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
         $errors[] = 'Invalid CSRF token.';
     } else {
-        $bundle['title'] = trim((string)($_POST['title'] ?? ''));
-        $bundle['description'] = (string)($_POST['description'] ?? '');
-        $bundle['instruction'] = (string)($_POST['instruction'] ?? '');
-        $bundle['duration_minutes'] = (string)($_POST['duration_minutes'] ?? '60');
-        $bundle['price_inr'] = (string)($_POST['price_inr'] ?? '0.00');
-        $bundle['start_at'] = (string)($_POST['start_at'] ?? '');
-        $bundle['end_at'] = (string)($_POST['end_at'] ?? '');
-        $bundle['test_year'] = trim((string)($_POST['test_year'] ?? ''));
-        $bundle['questions'] = backend_tests_clean_questions($_POST['questions'] ?? []);
-
-        if ($bundle['title'] === '') {
-            $errors[] = 'Test name is required.';
-        }
-        if (trim(strip_tags($bundle['description'])) === '') {
-            $errors[] = 'Test description is required.';
-        }
-        if (trim(strip_tags($bundle['instruction'])) === '') {
-            $errors[] = 'Test instruction is required.';
-        }
-        $durationMinutes = (int)$bundle['duration_minutes'];
-        if ($durationMinutes <= 0) {
-            $errors[] = 'Duration must be at least 1 minute.';
-        }
-        $priceInr = (float)$bundle['price_inr'];
-        if ($priceInr < 0) {
-            $errors[] = 'Price cannot be negative.';
-        }
-        $startAtUtc = backend_tests_local_to_utc($bundle['start_at']);
-        $endAtUtc = backend_tests_local_to_utc($bundle['end_at']);
-        if (!$startAtUtc || !$endAtUtc) {
-            $errors[] = 'Start and end date/time are required.';
-        } elseif ($endAtUtc <= $startAtUtc) {
-            $errors[] = 'Test end date/time must be after the start date/time.';
-        }
-        if ($bundle['test_year'] === '') {
-            $errors[] = 'Test year is required.';
-        }
-        if ($bundle['questions'] === []) {
-            $errors[] = 'Add at least one question.';
-        }
-
-        $questionPayload = [];
-        $totalMarks = 0;
-        $attributeIds = array_column($pdo->query('SELECT id FROM attributes ORDER BY id')->fetchAll(), 'id');
-        $subAttrMap = [];
-        foreach ($pdo->query('SELECT id, attribute_id FROM sub_attributes')->fetchAll() as $subRow) {
-            $subAttrMap[(int)$subRow['id']] = (int)$subRow['attribute_id'];
-        }
-
-        foreach ($bundle['questions'] as $index => $question) {
-            $title = trim((string)$question['title']);
-            $questionType = (string)$question['question_type'];
-            $marks = (int)$question['marks'];
-            $attributeId = (int)$question['attribute_id'];
-            $subAttributeId = (int)$question['sub_attribute_id'];
-            $weight = (float)$question['weight'];
-
-            if ($title === '') {
-                $errors[] = 'Question ' . ($index + 1) . ' needs a title.';
-                continue;
-            }
-            if ($marks <= 0) {
-                $errors[] = 'Question ' . ($index + 1) . ' must have marks of at least 1.';
-            }
-            if ($questionType === 'mcq') {
-                if (count($question['options']) < 2) {
-                    $errors[] = 'Question ' . ($index + 1) . ' needs at least two options.';
-                }
-                $correctCount = 0;
-                foreach ($question['options'] as $opt) {
-                    if (trim((string)$opt['text']) !== '' && (int)$opt['is_correct'] === 1) {
-                        $correctCount++;
-                    }
-                }
-                if ($correctCount === 0) {
-                    $errors[] = 'Question ' . ($index + 1) . ' needs one correct option.';
-                }
-            }
-
-            if ($attributeId > 0 || $subAttributeId > 0) {
-                if ($attributeId <= 0 || $subAttributeId <= 0) {
-                    $errors[] = 'Question ' . ($index + 1) . ' needs both attribute and sub-attribute if mapping is used.';
-                } elseif (!in_array($attributeId, array_map('intval', $attributeIds), true)) {
-                    $errors[] = 'Question ' . ($index + 1) . ' has an invalid attribute selection.';
-                } elseif (!isset($subAttrMap[$subAttributeId]) || $subAttrMap[$subAttributeId] !== $attributeId) {
-                    $errors[] = 'Question ' . ($index + 1) . ' has an invalid sub-attribute selection.';
-                }
-            }
-
-            $totalMarks += $marks;
-            $questionPayload[] = [
-                'title' => $title,
-                'question_type' => $questionType,
-                'marks' => $marks,
-                'attribute_id' => $attributeId,
-                'sub_attribute_id' => $subAttributeId,
-                'weight' => $weight,
-                'options' => $question['options'],
+        $bundle = backend_tests_bundle_from_post($_POST);
+        if ($action === 'add_question') {
+            $bundle['questions'][] = [
+                'title' => '',
+                'question_type' => 'mcq',
+                'marks' => '1',
+                'attribute_id' => '',
+                'sub_attribute_id' => '',
+                'weight' => '1.00',
+                'options' => [
+                    ['text' => '', 'is_correct' => 1],
+                    ['text' => '', 'is_correct' => 0],
+                ],
             ];
-        }
+        } else {
+            if ($bundle['title'] === '') {
+                $errors[] = 'Test name is required.';
+            }
+            if (trim(strip_tags($bundle['description'])) === '') {
+                $errors[] = 'Test description is required.';
+            }
+            if (trim(strip_tags($bundle['instruction'])) === '') {
+                $errors[] = 'Test instruction is required.';
+            }
+            $durationMinutes = (int)$bundle['duration_minutes'];
+            if ($durationMinutes <= 0) {
+                $errors[] = 'Duration must be at least 1 minute.';
+            }
+            $priceInr = (float)$bundle['price_inr'];
+            if ($priceInr < 0) {
+                $errors[] = 'Price cannot be negative.';
+            }
+            $startAtUtc = backend_tests_local_to_utc($bundle['start_at']);
+            $endAtUtc = backend_tests_local_to_utc($bundle['end_at']);
+            if (!$startAtUtc || !$endAtUtc) {
+                $errors[] = 'Start and end date/time are required.';
+            } elseif ($endAtUtc <= $startAtUtc) {
+                $errors[] = 'Test end date/time must be after the start date/time.';
+            }
+            if ($bundle['test_year'] === '') {
+                $errors[] = 'Test year is required.';
+            }
+            if ($bundle['questions'] === []) {
+                $errors[] = 'Add at least one question.';
+            }
 
-        if ($errors === []) {
-            try {
-                $pdo->beginTransaction();
-                $stmt = $pdo->prepare(
-                    'INSERT INTO tests
-                     (title, description, instruction, test_year, start_at, end_at, created_by, total_marks, duration_minutes, price_inr, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
-                );
-                $stmt->execute([
-                    $bundle['title'],
-                    $bundle['description'] !== '' ? $bundle['description'] : null,
-                    $bundle['instruction'] !== '' ? $bundle['instruction'] : null,
-                    $bundle['test_year'],
-                    $startAtUtc,
-                    $endAtUtc,
-                    (int)$user['sub'],
-                    $totalMarks,
-                    $durationMinutes,
-                    $priceInr,
-                ]);
-                $testId = (int)$pdo->lastInsertId();
+            $questionPayload = [];
+            $totalMarks = 0;
+            $attributeIds = array_column($pdo->query('SELECT id FROM attributes ORDER BY id')->fetchAll(), 'id');
+            $subAttrMap = [];
+            foreach ($pdo->query('SELECT id, attribute_id FROM sub_attributes')->fetchAll() as $subRow) {
+                $subAttrMap[(int)$subRow['id']] = (int)$subRow['attribute_id'];
+            }
 
-                $questionStmt = $pdo->prepare(
-                    'INSERT INTO questions (question_text, question_type, difficulty, created_by, created_at)
-                     VALUES (?, ?, ?, ?, NOW())'
-                );
-                $testQuestionStmt = $pdo->prepare(
-                    'INSERT INTO test_questions (test_id, question_id, marks) VALUES (?, ?, ?)'
-                );
-                $optionStmt = $pdo->prepare(
-                    'INSERT INTO question_options (question_id, option_text, is_correct) VALUES (?, ?, ?)'
-                );
-                $mappingStmt = $pdo->prepare(
-                    'INSERT INTO question_attribute_mapping (question_id, attribute_id, sub_attribute_id, weight) VALUES (?, ?, ?, ?)'
-                );
+            foreach ($bundle['questions'] as $index => $question) {
+                $title = trim((string)$question['title']);
+                $questionType = (string)$question['question_type'];
+                $marks = (int)$question['marks'];
+                $attributeId = (int)$question['attribute_id'];
+                $subAttributeId = (int)$question['sub_attribute_id'];
+                $weight = (float)$question['weight'];
 
-                foreach ($questionPayload as $question) {
-                    $questionStmt->execute([
-                        $question['title'],
-                        $question['question_type'],
-                        'medium',
-                        (int)$user['sub'],
-                    ]);
-                    $questionId = (int)$pdo->lastInsertId();
-                    $testQuestionStmt->execute([$testId, $questionId, $question['marks']]);
-
-                    if ($question['attribute_id'] > 0 && $question['sub_attribute_id'] > 0) {
-                        $mappingStmt->execute([
-                            $questionId,
-                            $question['attribute_id'],
-                            $question['sub_attribute_id'],
-                            $question['weight'] > 0 ? $question['weight'] : 1.00,
-                        ]);
+                if ($title === '') {
+                    $errors[] = 'Question ' . ($index + 1) . ' needs a title.';
+                    continue;
+                }
+                if ($marks <= 0) {
+                    $errors[] = 'Question ' . ($index + 1) . ' must have marks of at least 1.';
+                }
+                if ($questionType === 'mcq') {
+                    if (count($question['options']) < 2) {
+                        $errors[] = 'Question ' . ($index + 1) . ' needs at least two options.';
                     }
-
-                    foreach ($question['options'] as $option) {
-                        $optionText = trim((string)$option['text']);
-                        if ($optionText === '') {
-                            continue;
+                    $correctCount = 0;
+                    foreach ($question['options'] as $opt) {
+                        if (trim((string)$opt['text']) !== '' && (int)$opt['is_correct'] === 1) {
+                            $correctCount++;
                         }
-                        $optionStmt->execute([$questionId, $optionText, (int)$option['is_correct']]);
+                    }
+                    if ($correctCount === 0) {
+                        $errors[] = 'Question ' . ($index + 1) . ' needs one correct option.';
                     }
                 }
 
-                $pdo->commit();
-                header('Location: ' . url_for('backend/tests.php?created=1'));
-                exit;
-            } catch (Throwable $e) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
+                if ($attributeId > 0 || $subAttributeId > 0) {
+                    if ($attributeId <= 0 || $subAttributeId <= 0) {
+                        $errors[] = 'Question ' . ($index + 1) . ' needs both attribute and sub-attribute if mapping is used.';
+                    } elseif (!in_array($attributeId, array_map('intval', $attributeIds), true)) {
+                        $errors[] = 'Question ' . ($index + 1) . ' has an invalid attribute selection.';
+                    } elseif (!isset($subAttrMap[$subAttributeId]) || $subAttrMap[$subAttributeId] !== $attributeId) {
+                        $errors[] = 'Question ' . ($index + 1) . ' has an invalid sub-attribute selection.';
+                    }
                 }
-                $errors[] = 'Save failed: ' . $e->getMessage();
+
+                $totalMarks += $marks;
+                $questionPayload[] = [
+                    'title' => $title,
+                    'question_type' => $questionType,
+                    'marks' => $marks,
+                    'attribute_id' => $attributeId,
+                    'sub_attribute_id' => $subAttributeId,
+                    'weight' => $weight,
+                    'options' => $question['options'],
+                ];
+            }
+
+            if ($errors === []) {
+                try {
+                    $pdo->beginTransaction();
+                    $stmt = $pdo->prepare(
+                        'INSERT INTO tests
+                         (title, description, instruction, test_year, start_at, end_at, created_by, total_marks, duration_minutes, price_inr, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+                    );
+                    $stmt->execute([
+                        $bundle['title'],
+                        $bundle['description'] !== '' ? $bundle['description'] : null,
+                        $bundle['instruction'] !== '' ? $bundle['instruction'] : null,
+                        $bundle['test_year'],
+                        $startAtUtc,
+                        $endAtUtc,
+                        (int)$user['sub'],
+                        $totalMarks,
+                        $durationMinutes,
+                        $priceInr,
+                    ]);
+                    $testId = (int)$pdo->lastInsertId();
+
+                    $questionStmt = $pdo->prepare(
+                        'INSERT INTO questions (question_text, question_type, difficulty, created_by, created_at)
+                         VALUES (?, ?, ?, ?, NOW())'
+                    );
+                    $testQuestionStmt = $pdo->prepare(
+                        'INSERT INTO test_questions (test_id, question_id, marks) VALUES (?, ?, ?)'
+                    );
+                    $optionStmt = $pdo->prepare(
+                        'INSERT INTO question_options (question_id, option_text, is_correct) VALUES (?, ?, ?)'
+                    );
+                    $mappingStmt = $pdo->prepare(
+                        'INSERT INTO question_attribute_mapping (question_id, attribute_id, sub_attribute_id, weight) VALUES (?, ?, ?, ?)'
+                    );
+
+                    foreach ($questionPayload as $question) {
+                        $questionStmt->execute([
+                            $question['title'],
+                            $question['question_type'],
+                            'medium',
+                            (int)$user['sub'],
+                        ]);
+                        $questionId = (int)$pdo->lastInsertId();
+                        $testQuestionStmt->execute([$testId, $questionId, $question['marks']]);
+
+                        if ($question['attribute_id'] > 0 && $question['sub_attribute_id'] > 0) {
+                            $mappingStmt->execute([
+                                $questionId,
+                                $question['attribute_id'],
+                                $question['sub_attribute_id'],
+                                $question['weight'] > 0 ? $question['weight'] : 1.00,
+                            ]);
+                        }
+
+                        foreach ($question['options'] as $option) {
+                            $optionText = trim((string)$option['text']);
+                            if ($optionText === '') {
+                                continue;
+                            }
+                            $optionStmt->execute([$questionId, $optionText, (int)$option['is_correct']]);
+                        }
+                    }
+
+                    $pdo->commit();
+                    header('Location: ' . url_for('backend/tests.php?created=1'));
+                    exit;
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    $errors[] = 'Save failed: ' . $e->getMessage();
+                }
             }
         }
     }
@@ -454,7 +579,6 @@ require_once dirname(__DIR__) . '/includes_header.php';
      data-sub-attributes="<?php echo htmlspecialchars(json_encode($subAttributes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8'); ?>">
     <form method="post" class="eq-backend-panel" id="test-builder-form">
         <?php echo csrf_field(); ?>
-        <input type="hidden" name="action" value="save_bundle">
         <div class="card-body">
             <div class="eq-builder-head">
                 <div>
@@ -462,8 +586,8 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <div class="eq-muted">Name, description, instruction, availability, and questions all in one screen.</div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-question-top" onclick="window.eqTestsAddQuestion && window.eqTestsAddQuestion(); return false;">Add More Question</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Save Test</button>
+                    <button type="submit" class="btn btn-outline-primary btn-sm" id="btn-add-question-top" name="action" value="add_question">Add More Question</button>
+                    <button type="submit" class="btn btn-primary btn-sm" name="action" value="save_bundle">Save Test</button>
                 </div>
             </div>
 
@@ -511,14 +635,24 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <h5 class="mb-0">Questions</h5>
                     <div class="eq-muted">Add questions, options, and correct answers directly in this form.</div>
                 </div>
-                <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-question" onclick="window.eqTestsAddQuestion && window.eqTestsAddQuestion(); return false;">Add More Question</button>
+                <button type="submit" class="btn btn-outline-primary btn-sm" id="btn-add-question" name="action" value="add_question">Add More Question</button>
             </div>
 
-            <div id="questions-builder" class="eq-questions-list"></div>
+            <div id="questions-builder" class="eq-questions-list">
+                <?php
+                $renderQuestions = $bundle['questions'];
+                if ($renderQuestions === []) {
+                    $renderQuestions = backend_tests_default_bundle()['questions'];
+                }
+                foreach ($renderQuestions as $questionIndex => $question) {
+                    echo backend_tests_render_question_card((int)$questionIndex, (array)$question, $attributes, $subAttributes);
+                }
+                ?>
+            </div>
 
             <div class="mt-3 d-flex justify-content-end gap-2">
-                <button type="button" class="btn btn-outline-primary" id="btn-add-question-bottom" onclick="window.eqTestsAddQuestion && window.eqTestsAddQuestion(); return false;">Add More Question</button>
-                <button type="submit" class="btn btn-primary">Save Test</button>
+                <button type="submit" class="btn btn-outline-primary" id="btn-add-question-bottom" name="action" value="add_question">Add More Question</button>
+                <button type="submit" class="btn btn-primary" name="action" value="save_bundle">Save Test</button>
             </div>
         </div>
     </form>
