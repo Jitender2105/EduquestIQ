@@ -43,6 +43,14 @@ if ($reportError !== null) {
 $statusCounts = $report['status_counts'];
 $overallScore = (float)$report['overall_score'];
 $overallBand = sira_band($overallScore);
+$comparison = $report['comparison'];
+$accuracy = $report['accuracy_percent'];
+$completion = (float)$report['completion_percent'];
+
+function sira_report_label(string $status): string
+{
+    return ucwords(str_replace('_', ' ', $status));
+}
 ?>
 
 <style>
@@ -65,6 +73,9 @@ $overallBand = sira_band($overallScore);
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 14px;
     }
+    .eq-sira-report-grid.six {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
     .eq-sira-metric {
         background: #fff;
         border-radius: 18px;
@@ -78,12 +89,39 @@ $overallBand = sira_band($overallScore);
         line-height: 1;
         margin-bottom: 4px;
     }
+    .eq-sira-table td,
+    .eq-sira-table th {
+        vertical-align: middle;
+    }
     .eq-sira-panel {
         background: #fff;
         border: 1px solid rgba(47, 59, 120, 0.08);
         border-radius: 24px;
         box-shadow: 0 18px 40px rgba(37, 49, 104, 0.08);
         padding: 18px;
+    }
+    .eq-sira-compare-card {
+        border-radius: 18px;
+        background: #f8faff;
+        border: 1px solid rgba(47, 59, 120, 0.08);
+        padding: 16px;
+        height: 100%;
+    }
+    .eq-sira-compare-card strong {
+        display: block;
+        font-size: 1.35rem;
+        margin-bottom: 2px;
+    }
+    .eq-sira-insight-card {
+        border-radius: 16px;
+        border: 1px solid rgba(47, 59, 120, 0.08);
+        background: #fbfcff;
+        padding: 14px;
+        height: 100%;
+    }
+    .eq-sira-insight-card strong {
+        display: block;
+        font-size: 1.2rem;
     }
     .eq-sira-attribute-card {
         background: #f9fbff;
@@ -110,12 +148,14 @@ $overallBand = sira_band($overallScore);
         margin-top: 10px;
     }
     @media (max-width: 991px) {
-        .eq-sira-report-grid {
+        .eq-sira-report-grid,
+        .eq-sira-report-grid.six {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
     @media (max-width: 575px) {
-        .eq-sira-report-grid {
+        .eq-sira-report-grid,
+        .eq-sira-report-grid.six {
             grid-template-columns: 1fr;
         }
     }
@@ -132,7 +172,15 @@ $overallBand = sira_band($overallScore);
                 <div class="badge text-bg-light text-dark mb-2">SIRA Assessment Report</div>
                 <h2><?php echo htmlspecialchars($report['attempt']['student_name']); ?></h2>
                 <p class="mb-1"><?php echo htmlspecialchars($report['attempt']['test_title']); ?></p>
-                <div class="text-white-50 small">Attempted on <?php echo htmlspecialchars((string)$report['attempt']['attempt_date']); ?></div>
+                <div class="text-white-50 small">
+                    Attempted on <?php echo htmlspecialchars((string)$report['attempt']['attempt_date']); ?>
+                    <?php if (!empty($report['attempt']['student_grade'])): ?>
+                        · Grade <?php echo htmlspecialchars((string)$report['attempt']['student_grade']); ?>
+                    <?php endif; ?>
+                    <?php if (!empty($report['attempt']['student_school_name'])): ?>
+                        · <?php echo htmlspecialchars((string)$report['attempt']['student_school_name']); ?>
+                    <?php endif; ?>
+                </div>
             </div>
             <div class="text-end">
                 <div class="display-6 fw-bold"><?php echo number_format($overallScore, 1); ?>%</div>
@@ -144,10 +192,83 @@ $overallBand = sira_band($overallScore);
 
     <section class="eq-sira-report-grid">
         <div class="eq-sira-metric"><strong><?php echo number_format((float)$overallScore, 1); ?>%</strong><span>Overall Score</span></div>
-        <div class="eq-sira-metric"><strong><?php echo (int)$statusCounts['answered']; ?></strong><span>Answered</span></div>
-        <div class="eq-sira-metric"><strong><?php echo (int)$statusCounts['marked_for_review']; ?></strong><span>Marked Review</span></div>
+        <div class="eq-sira-metric"><strong><?php echo number_format((float)$report['earned_marks_total'], 1); ?> / <?php echo number_format((float)$report['total_possible_marks'], 1); ?></strong><span>Total Marks</span></div>
+        <div class="eq-sira-metric"><strong><?php echo (int)$report['response_count']; ?> / <?php echo (int)$report['total_questions']; ?></strong><span>Answered Questions</span></div>
+        <div class="eq-sira-metric"><strong>#<?php echo (int)($comparison['overall']['rank'] ?? 0); ?></strong><span>Overall Rank</span></div>
+    </section>
+
+    <section class="eq-sira-report-grid">
+        <div class="eq-sira-metric"><strong><?php echo (int)$report['attempted_count']; ?></strong><span>Visited / Attempted</span></div>
+        <div class="eq-sira-metric"><strong><?php echo (int)$report['correct_count']; ?></strong><span>Correct</span></div>
+        <div class="eq-sira-metric"><strong><?php echo (int)$report['incorrect_count']; ?></strong><span>Incorrect</span></div>
         <div class="eq-sira-metric"><strong><?php echo (int)$statusCounts['not_attempted']; ?></strong><span>Not Attempted</span></div>
     </section>
+
+    <section class="eq-sira-report-grid">
+        <div class="eq-sira-metric"><strong><?php echo $accuracy !== null ? number_format((float)$accuracy, 1) . '%' : 'N/A'; ?></strong><span>Objective Accuracy</span></div>
+        <div class="eq-sira-metric"><strong><?php echo number_format($completion, 1); ?>%</strong><span>Completion Rate</span></div>
+        <div class="eq-sira-metric"><strong><?php echo (int)$report['unanswered_count']; ?></strong><span>Not Answered</span></div>
+        <div class="eq-sira-metric"><strong><?php echo (int)$statusCounts['marked_for_review']; ?></strong><span>Marked Review</span></div>
+    </section>
+
+    <section class="eq-sira-panel">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h5 class="mb-0">Peer comparison</h5>
+            <span class="badge text-bg-primary">Same test context</span>
+        </div>
+        <div class="row g-3">
+            <?php foreach (['overall', 'class', 'grade', 'school', 'state_grade', 'state'] as $scope): ?>
+                <?php $block = $comparison[$scope]; ?>
+                <div class="col-md-6 col-xl-3">
+                    <div class="eq-sira-compare-card">
+                        <div class="small text-muted mb-2"><?php echo htmlspecialchars($block['label']); ?> comparison</div>
+                        <strong>
+                            <?php if ($block['rank'] !== null): ?>
+                                Rank <?php echo (int)$block['rank']; ?> / <?php echo (int)$block['participants']; ?>
+                            <?php else: ?>
+                                Not available
+                            <?php endif; ?>
+                        </strong>
+                        <div class="small text-muted">
+                            Average:
+                            <?php echo $block['average'] !== null ? number_format((float)$block['average'], 1) . '%' : 'N/A'; ?>
+                        </div>
+                        <div class="small text-muted">
+                            Percentile:
+                            <?php echo $block['percentile'] !== null ? number_format((float)$block['percentile'], 1) . 'th' : 'N/A'; ?>
+                        </div>
+                        <div class="small text-muted">
+                            Top score:
+                            <?php echo $block['top_score'] !== null ? number_format((float)$block['top_score'], 1) . '%' : 'N/A'; ?>
+                        </div>
+                        <div class="small text-muted">
+                            Participants: <?php echo (int)$block['participants']; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <?php if (!empty($report['insights'])): ?>
+        <section class="eq-sira-panel">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h5 class="mb-0">SIRA performance indicators</h5>
+                <span class="small text-muted">Based on this test attempt and peer context</span>
+            </div>
+            <div class="row g-3">
+                <?php foreach ($report['insights'] as $insight): ?>
+                    <div class="col-md-6 col-xl-3">
+                        <div class="eq-sira-insight-card">
+                            <div class="small text-muted"><?php echo htmlspecialchars((string)$insight['label']); ?></div>
+                            <strong><?php echo htmlspecialchars((string)$insight['value']); ?></strong>
+                            <div class="small text-muted"><?php echo htmlspecialchars((string)$insight['text']); ?></div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <div class="row g-3">
         <div class="col-lg-7">
@@ -189,6 +310,74 @@ $overallBand = sira_band($overallScore);
             </section>
         </div>
     </div>
+
+    <section class="eq-sira-panel">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <h5 class="mb-0">Question performance</h5>
+            <span class="small text-muted">Includes question status, result, selected response, and marks earned.</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle eq-sira-table">
+                <thead>
+                    <tr>
+                        <th>Q#</th>
+                        <th>Question</th>
+                        <th>Status</th>
+                        <th>Result</th>
+                        <th>Selected / Response</th>
+                        <th>Correct Answer</th>
+                        <th>Marks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($report['question_rows'] as $question): ?>
+                        <tr>
+                            <td class="fw-bold"><?php echo (int)$question['number']; ?></td>
+                            <td>
+                                <div class="fw-semibold"><?php echo htmlspecialchars(text_preview(strip_tags((string)$question['question_text']), 96, '...')); ?></div>
+                                <div class="small text-muted text-capitalize"><?php echo htmlspecialchars((string)$question['question_type']); ?></div>
+                            </td>
+                            <td><span class="eq-question-status status-<?php echo htmlspecialchars((string)$question['status']); ?>"><?php echo htmlspecialchars(sira_report_label((string)$question['status'])); ?></span></td>
+                            <td>
+                                <?php if ($question['question_type'] === 'mcq'): ?>
+                                    <?php echo $question['is_correct'] ? '<span class="badge text-bg-success">Correct</span>' : (($question['status'] === 'not_attempted' || $question['status'] === 'not_answered') ? '<span class="badge text-bg-secondary">Not solved</span>' : '<span class="badge text-bg-danger">Incorrect</span>'); ?>
+                                <?php else: ?>
+                                    <?php echo trim((string)$question['subjective_answer']) !== '' ? '<span class="badge text-bg-warning text-dark">Pending review</span>' : '<span class="badge text-bg-secondary">Not answered</span>'; ?>
+                                <?php endif; ?>
+                            </td>
+                            <td class="small text-muted">
+                                <?php
+                                if ($question['question_type'] === 'mcq') {
+                                    echo htmlspecialchars((string)($question['selected_option_text'] ?? 'No option selected'));
+                                } else {
+                                    echo htmlspecialchars(text_preview(trim((string)$question['subjective_answer']), 90, '...') ?: 'No response submitted');
+                                }
+                                ?>
+                            </td>
+                            <td class="small text-muted">
+                                <?php
+                                if ($question['question_type'] === 'mcq') {
+                                    echo htmlspecialchars((string)($question['correct_option_text'] ?? 'Not configured'));
+                                } else {
+                                    echo 'Teacher reviewed';
+                                }
+                                ?>
+                            </td>
+                            <td>
+                                <?php
+                                if ($question['earned_marks'] === null) {
+                                    echo 'Pending / ' . number_format((float)$question['marks'], 1);
+                                } else {
+                                    echo number_format((float)$question['earned_marks'], 1) . ' / ' . number_format((float)$question['marks'], 1);
+                                }
+                                ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
 
     <section class="eq-sira-panel">
         <h5 class="mb-3">Detailed attribute report</h5>
