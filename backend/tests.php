@@ -48,6 +48,8 @@ function backend_tests_utc_to_local_label(?string $value): string
 function backend_tests_default_bundle(): array
 {
     return [
+        'edit_id' => '',
+        'access_type' => 'free',
         'title' => '',
         'description' => '',
         'instruction' => '',
@@ -76,6 +78,8 @@ function backend_tests_default_bundle(): array
 function backend_tests_bundle_from_post(array $source): array
 {
     $bundle = backend_tests_default_bundle();
+    $bundle['edit_id'] = trim((string)($source['edit_id'] ?? ''));
+    $bundle['access_type'] = (string)($source['access_type'] ?? 'free');
     $bundle['title'] = trim((string)($source['title'] ?? ''));
     $bundle['description'] = (string)($source['description'] ?? '');
     $bundle['instruction'] = (string)($source['instruction'] ?? '');
@@ -86,6 +90,70 @@ function backend_tests_bundle_from_post(array $source): array
     $bundle['test_year'] = trim((string)($source['test_year'] ?? ''));
     $bundle['questions'] = backend_tests_clean_questions($source['questions'] ?? []);
     return $bundle;
+}
+
+function backend_tests_load_bundle(PDO $pdo, int $testId): ?array
+{
+    $stmt = $pdo->prepare(
+        'SELECT id, title, description, instruction, duration_minutes, price_inr, start_at, end_at, test_year
+         FROM tests
+         WHERE id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$testId]);
+    $test = $stmt->fetch();
+    if (!$test) {
+        return null;
+    }
+
+    $questionStmt = $pdo->prepare(
+        'SELECT q.id AS question_id, q.question_text, q.question_type, tq.marks,
+                qam.attribute_id, qam.sub_attribute_id, qam.weight
+         FROM test_questions tq
+         JOIN questions q ON q.id = tq.question_id
+         LEFT JOIN question_attribute_mapping qam ON qam.question_id = q.id
+         WHERE tq.test_id = ?
+         ORDER BY tq.id ASC'
+    );
+    $questionStmt->execute([$testId]);
+    $questions = [];
+    foreach ($questionStmt->fetchAll() as $row) {
+        $optionStmt = $pdo->prepare('SELECT option_text, is_correct FROM question_options WHERE question_id = ? ORDER BY id ASC');
+        $optionStmt->execute([(int)$row['question_id']]);
+        $options = [];
+        foreach ($optionStmt->fetchAll() as $optionRow) {
+            $options[] = [
+                'text' => (string)$optionRow['option_text'],
+                'is_correct' => (int)$optionRow['is_correct'],
+            ];
+        }
+        if ($options === []) {
+            $options = backend_tests_blank_question()['options'];
+        }
+        $questions[] = [
+            'title' => (string)$row['question_text'],
+            'question_type' => (string)$row['question_type'],
+            'marks' => (string)$row['marks'],
+            'attribute_id' => (string)($row['attribute_id'] ?? ''),
+            'sub_attribute_id' => (string)($row['sub_attribute_id'] ?? ''),
+            'weight' => (string)($row['weight'] ?? '1.00'),
+            'options' => $options,
+        ];
+    }
+
+    return [
+        'edit_id' => (string)$test['id'],
+        'access_type' => ((float)($test['price_inr'] ?? 0) > 0) ? 'paid' : 'free',
+        'title' => (string)$test['title'],
+        'description' => (string)($test['description'] ?? ''),
+        'instruction' => (string)($test['instruction'] ?? ''),
+        'duration_minutes' => (string)$test['duration_minutes'],
+        'price_inr' => number_format((float)($test['price_inr'] ?? 0), 2, '.', ''),
+        'start_at' => backend_tests_utc_to_local_input((string)($test['start_at'] ?? '')),
+        'end_at' => backend_tests_utc_to_local_input((string)($test['end_at'] ?? '')),
+        'test_year' => (string)($test['test_year'] ?? ''),
+        'questions' => $questions !== [] ? $questions : backend_tests_default_bundle()['questions'],
+    ];
 }
 
 function backend_tests_blank_question(): array
@@ -261,14 +329,28 @@ function backend_tests_clean_questions(array $questions): array
 $bundle = backend_tests_default_bundle();
 $errors = [];
 $success = null;
+$editId = backend_is_super_admin($user) ? max(0, (int)($_GET['edit'] ?? 0)) : 0;
+
+if ($editId > 0) {
+    $loadedBundle = backend_tests_load_bundle($pdo, $editId);
+    if ($loadedBundle) {
+        $bundle = $loadedBundle;
+    } else {
+        $editId = 0;
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = (string)($_POST['action'] ?? 'save_bundle');
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
         $errors[] = 'Invalid CSRF token.';
     } else {
-        backend_require_admin($user);
         $bundle = backend_tests_bundle_from_post($_POST);
+        $postedEditId = max(0, (int)($bundle['edit_id'] ?? 0));
+        backend_require_admin($user);
+        if ($postedEditId > 0) {
+            backend_require_super_admin($user);
+        }
         if ($action === 'add_question') {
             $bundle['questions'][] = backend_tests_blank_question();
         } elseif (str_starts_with($action, 'add_option:')) {
@@ -313,9 +395,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($durationMinutes <= 0) {
                 $errors[] = 'Duration must be at least 1 minute.';
             }
-            $priceInr = (float)$bundle['price_inr'];
+            if (!in_array($bundle['access_type'], ['free', 'paid'], true)) {
+                $errors[] = 'Select a valid access type.';
+            }
+            $priceInr = $bundle['access_type'] === 'free' ? 0.0 : (float)$bundle['price_inr'];
             if ($priceInr < 0) {
                 $errors[] = 'Price cannot be negative.';
+            }
+            if ($bundle['access_type'] === 'paid' && $priceInr <= 0) {
+                $errors[] = 'Paid tests must have a price greater than 0.';
             }
             $startAtUtc = backend_tests_local_to_utc($bundle['start_at']);
             $endAtUtc = backend_tests_local_to_utc($bundle['end_at']);
@@ -394,24 +482,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($errors === []) {
                 try {
                     $pdo->beginTransaction();
-                    $stmt = $pdo->prepare(
-                        'INSERT INTO tests
-                         (title, description, instruction, test_year, start_at, end_at, created_by, total_marks, duration_minutes, price_inr, created_at)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
-                    );
-                    $stmt->execute([
-                        $bundle['title'],
-                        $bundle['description'] !== '' ? $bundle['description'] : null,
-                        $bundle['instruction'] !== '' ? $bundle['instruction'] : null,
-                        $bundle['test_year'],
-                        $startAtUtc,
-                        $endAtUtc,
-                        (int)$user['sub'],
-                        $totalMarks,
-                        $durationMinutes,
-                        $priceInr,
-                    ]);
-                    $testId = (int)$pdo->lastInsertId();
+                    if ($postedEditId > 0) {
+                        $attemptCountStmt = $pdo->prepare('SELECT COUNT(*) FROM test_attempts WHERE test_id = ?');
+                        $attemptCountStmt->execute([$postedEditId]);
+                        if ((int)$attemptCountStmt->fetchColumn() > 0) {
+                            throw new RuntimeException('This test already has student attempts. Create a new version instead of changing existing questions.');
+                        }
+                        $stmt = $pdo->prepare(
+                            'UPDATE tests
+                             SET title = ?, description = ?, instruction = ?, test_year = ?, start_at = ?, end_at = ?, total_marks = ?, duration_minutes = ?, price_inr = ?
+                             WHERE id = ?'
+                        );
+                        $stmt->execute([
+                            $bundle['title'],
+                            $bundle['description'] !== '' ? $bundle['description'] : null,
+                            $bundle['instruction'] !== '' ? $bundle['instruction'] : null,
+                            $bundle['test_year'],
+                            $startAtUtc,
+                            $endAtUtc,
+                            $totalMarks,
+                            $durationMinutes,
+                            $priceInr,
+                            $postedEditId,
+                        ]);
+                        $existingQuestionStmt = $pdo->prepare('SELECT question_id FROM test_questions WHERE test_id = ?');
+                        $existingQuestionStmt->execute([$postedEditId]);
+                        $existingQuestionIds = array_map('intval', array_column($existingQuestionStmt->fetchAll(), 'question_id'));
+                        if ($existingQuestionIds !== []) {
+                            $placeholders = implode(',', array_fill(0, count($existingQuestionIds), '?'));
+                            $pdo->prepare("DELETE FROM question_attribute_mapping WHERE question_id IN ($placeholders)")->execute($existingQuestionIds);
+                            $pdo->prepare("DELETE FROM question_options WHERE question_id IN ($placeholders)")->execute($existingQuestionIds);
+                            $pdo->prepare('DELETE FROM test_questions WHERE test_id = ?')->execute([$postedEditId]);
+                            $pdo->prepare("DELETE FROM questions WHERE id IN ($placeholders)")->execute($existingQuestionIds);
+                        } else {
+                            $pdo->prepare('DELETE FROM test_questions WHERE test_id = ?')->execute([$postedEditId]);
+                        }
+                        $testId = $postedEditId;
+                    } else {
+                        $stmt = $pdo->prepare(
+                            'INSERT INTO tests
+                             (title, description, instruction, test_year, start_at, end_at, created_by, total_marks, duration_minutes, price_inr, created_at)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+                        );
+                        $stmt->execute([
+                            $bundle['title'],
+                            $bundle['description'] !== '' ? $bundle['description'] : null,
+                            $bundle['instruction'] !== '' ? $bundle['instruction'] : null,
+                            $bundle['test_year'],
+                            $startAtUtc,
+                            $endAtUtc,
+                            (int)$user['sub'],
+                            $totalMarks,
+                            $durationMinutes,
+                            $priceInr,
+                        ]);
+                        $testId = (int)$pdo->lastInsertId();
+                    }
 
                     $questionStmt = $pdo->prepare(
                         'INSERT INTO questions (question_text, question_type, difficulty, created_by, created_at)
@@ -456,7 +582,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     $pdo->commit();
-                    header('Location: ' . url_for('backend/tests.php?created=1'));
+                    header('Location: ' . url_for('backend/tests.php?' . ($postedEditId > 0 ? 'updated=1' : 'created=1')));
                     exit;
                 } catch (Throwable $e) {
                     if ($pdo->inTransaction()) {
@@ -473,13 +599,19 @@ $attributes = $pdo->query('SELECT id, name FROM attributes ORDER BY name')->fetc
 $subAttributes = $pdo->query('SELECT id, attribute_id, name FROM sub_attributes ORDER BY attribute_id, name')->fetchAll();
 $tests = $pdo->query(
     'SELECT t.id, t.title, t.test_year, t.start_at, t.end_at, t.duration_minutes, t.price_inr, t.total_marks, t.created_at,
-            COALESCE(qc.question_count, 0) AS question_count
+            COALESCE(qc.question_count, 0) AS question_count,
+            COALESCE(ac.attempt_count, 0) AS attempt_count
      FROM tests t
      LEFT JOIN (
          SELECT test_id, COUNT(*) AS question_count
          FROM test_questions
          GROUP BY test_id
      ) qc ON qc.test_id = t.id
+     LEFT JOIN (
+         SELECT test_id, COUNT(*) AS attempt_count
+         FROM test_attempts
+         GROUP BY test_id
+     ) ac ON ac.test_id = t.id
      ORDER BY t.id DESC
      LIMIT 50'
 )->fetchAll();
@@ -596,6 +728,9 @@ require_once dirname(__DIR__) . '/includes_header.php';
 <?php if (!empty($_GET['created'])): ?>
     <div class="alert alert-success">Test created successfully.</div>
 <?php endif; ?>
+<?php if (!empty($_GET['updated'])): ?>
+    <div class="alert alert-success">Test updated successfully.</div>
+<?php endif; ?>
 <?php if ($errors): ?>
     <div class="alert alert-danger">
         <ul class="mb-0">
@@ -616,14 +751,15 @@ require_once dirname(__DIR__) . '/includes_header.php';
         <div class="card-body">
             <div class="eq-builder-head">
                 <div>
-                    <h2 class="mb-0">Create Test</h2>
-                    <div class="eq-muted">Name, description, instruction, availability, and questions all in one screen.</div>
+                    <h2 class="mb-0"><?php echo $editId > 0 ? 'Edit Test' : 'Create Test'; ?></h2>
+                    <div class="eq-muted"><?php echo $editId > 0 ? 'Super admin edit mode for an existing test.' : 'Name, description, instruction, availability, and questions all in one screen.'; ?></div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
                     <button type="submit" class="btn btn-outline-primary btn-sm" id="btn-add-question-top" name="action" value="add_question" formnovalidate>Add More Question</button>
-                    <button type="submit" class="btn btn-primary btn-sm" name="action" value="save_bundle">Save Test</button>
+                    <button type="submit" class="btn btn-primary btn-sm" name="action" value="save_bundle"><?php echo $editId > 0 ? 'Update Test' : 'Save Test'; ?></button>
                 </div>
             </div>
+            <input type="hidden" name="edit_id" value="<?php echo htmlspecialchars($bundle['edit_id'] ?? ''); ?>">
 
             <div class="row g-3 mb-3">
                 <div class="col-lg-6">
@@ -631,13 +767,20 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <input class="form-control" name="title" required value="<?php echo htmlspecialchars($bundle['title']); ?>">
                 </div>
                 <div class="col-lg-3">
+                    <label class="form-label">Test access</label>
+                    <select class="form-select" name="access_type" id="test-access-type">
+                        <option value="free"<?php echo ($bundle['access_type'] ?? 'free') === 'free' ? ' selected' : ''; ?>>Free</option>
+                        <option value="paid"<?php echo ($bundle['access_type'] ?? 'free') === 'paid' ? ' selected' : ''; ?>>Paid</option>
+                    </select>
+                </div>
+                <div class="col-lg-3">
                     <label class="form-label">Duration of test (min)</label>
                     <input class="form-control" type="number" min="1" name="duration_minutes" value="<?php echo htmlspecialchars($bundle['duration_minutes']); ?>" required>
                 </div>
                 <div class="col-lg-3">
                     <label class="form-label">Price (INR)</label>
-                    <input class="form-control" type="number" min="0" step="0.01" name="price_inr" value="<?php echo htmlspecialchars($bundle['price_inr'] ?? '0.00'); ?>">
-                    <div class="form-text">Leave as 0 for a free test.</div>
+                    <input class="form-control" type="number" min="0" step="0.01" name="price_inr" id="test-price-input" value="<?php echo htmlspecialchars($bundle['price_inr'] ?? '0.00'); ?>">
+                    <div class="form-text">Choose Free or Paid. Paid tests require a price.</div>
                 </div>
                 <div class="col-lg-3">
                     <label class="form-label">Test year</label>
@@ -686,7 +829,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
 
             <div class="mt-3 d-flex justify-content-end gap-2">
                 <button type="submit" class="btn btn-outline-primary" id="btn-add-question-bottom" name="action" value="add_question" formnovalidate>Add More Question</button>
-                <button type="submit" class="btn btn-primary" name="action" value="save_bundle">Save Test</button>
+                <button type="submit" class="btn btn-primary" name="action" value="save_bundle"><?php echo $editId > 0 ? 'Update Test' : 'Save Test'; ?></button>
             </div>
         </div>
     </form>
@@ -705,7 +848,9 @@ require_once dirname(__DIR__) . '/includes_header.php';
                             <th>Duration</th>
                             <th>Price</th>
                             <th>Questions</th>
+                            <th>Attempts</th>
                             <th>Total Marks</th>
+                            <?php if (backend_is_super_admin($user)): ?><th>Action</th><?php endif; ?>
                         </tr>
                     </thead>
                     <tbody>
@@ -719,9 +864,13 @@ require_once dirname(__DIR__) . '/includes_header.php';
                                     <div class="text-muted">to <?php echo htmlspecialchars(backend_tests_utc_to_local_label((string)($test['end_at'] ?? ''))); ?></div>
                                 </td>
                                 <td><?php echo (int)$test['duration_minutes']; ?> min</td>
-                                <td><?php echo htmlspecialchars(test_price_label((float)($test['price_inr'] ?? 0))); ?></td>
+                                <td><?php echo (float)($test['price_inr'] ?? 0) > 0 ? htmlspecialchars(test_price_label((float)$test['price_inr'])) : 'Free'; ?></td>
                                 <td><?php echo (int)$test['question_count']; ?></td>
+                                <td><?php echo (int)$test['attempt_count']; ?></td>
                                 <td><?php echo (int)$test['total_marks']; ?></td>
+                                <?php if (backend_is_super_admin($user)): ?>
+                                    <td><a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('backend/tests.php?edit=' . (int)$test['id'])); ?>">Edit</a></td>
+                                <?php endif; ?>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -993,6 +1142,24 @@ require_once dirname(__DIR__) . '/includes_header.php';
     } else {
         bootstrapFallback();
     }
+
+    function syncPriceField() {
+        const accessSelect = document.getElementById('test-access-type');
+        const priceInput = document.getElementById('test-price-input');
+        if (!accessSelect || !priceInput) {
+            return;
+        }
+        const isPaid = accessSelect.value === 'paid';
+        priceInput.disabled = !isPaid;
+        if (!isPaid) {
+            priceInput.value = '0.00';
+        } else if (!priceInput.value || Number(priceInput.value) <= 0) {
+            priceInput.value = '99.00';
+        }
+    }
+
+    document.getElementById('test-access-type')?.addEventListener('change', syncPriceField);
+    syncPriceField();
 })();
 </script>
 

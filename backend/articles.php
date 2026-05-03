@@ -19,27 +19,77 @@ $contentUsers = $pdo->query(
 
 $errors = [];
 $success = null;
+$editId = backend_is_super_admin($user) ? max(0, (int)($_GET['edit'] ?? 0)) : 0;
+$faqFormRows = [['question' => '', 'answer' => '']];
 $form = [
+    'edit_id' => '',
     'title' => '',
     'content_html' => '',
     'school_id' => '',
     'article_type' => 'generic',
     'created_by' => (string)$user['sub'],
+    'image_path' => '',
 ];
+
+if ($editId > 0) {
+    $stmt = $pdo->prepare(
+        'SELECT id, title, content_html, school_id, article_type, created_by, image_path
+         FROM articles
+         WHERE id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$editId]);
+    $editingArticle = $stmt->fetch();
+    if ($editingArticle) {
+        $form = [
+            'edit_id' => (string)$editingArticle['id'],
+            'title' => (string)$editingArticle['title'],
+            'content_html' => (string)$editingArticle['content_html'],
+            'school_id' => (string)($editingArticle['school_id'] ?? ''),
+            'article_type' => (string)$editingArticle['article_type'],
+            'created_by' => (string)$editingArticle['created_by'],
+            'image_path' => (string)($editingArticle['image_path'] ?? ''),
+        ];
+        $faqStmt = $pdo->prepare('SELECT question, answer FROM article_faqs WHERE article_id = ? ORDER BY sequence_order ASC, id ASC');
+        $faqStmt->execute([$editId]);
+        $faqFormRows = $faqStmt->fetchAll() ?: $faqFormRows;
+    } else {
+        $editId = 0;
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
         $errors[] = 'Invalid CSRF token.';
     } else {
+        $postedEditId = max(0, (int)($_POST['edit_id'] ?? 0));
         $form['title'] = trim((string)($_POST['title'] ?? ''));
         $form['content_html'] = (string)($_POST['content_html'] ?? '');
         $form['school_id'] = trim((string)($_POST['school_id'] ?? ''));
         $form['article_type'] = (string)($_POST['article_type'] ?? 'generic');
         $form['created_by'] = (string)($_POST['created_by'] ?? $user['sub']);
+        $form['edit_id'] = $postedEditId > 0 ? (string)$postedEditId : '';
         $slug = '';
+        $faqQuestions = $_POST['faq_question'] ?? [];
+        $faqAnswers = $_POST['faq_answer'] ?? [];
+        $faqFormRows = [];
+        if (is_array($faqQuestions) && is_array($faqAnswers)) {
+            foreach ($faqQuestions as $index => $questionText) {
+                $faqFormRows[] = [
+                    'question' => (string)$questionText,
+                    'answer' => (string)($faqAnswers[$index] ?? ''),
+                ];
+            }
+        }
+        if ($faqFormRows === []) {
+            $faqFormRows = [['question' => '', 'answer' => '']];
+        }
 
         try {
             backend_require_admin($user);
+            if ($postedEditId > 0) {
+                backend_require_super_admin($user);
+            }
 
             if ($form['title'] === '') {
                 throw new RuntimeException('Article title is required.');
@@ -76,51 +126,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $imagePath = article_upload_image($_FILES['image_file']);
             }
 
-            $slug = article_unique_slug($pdo, $form['title']);
-
-            $stmt = $pdo->prepare(
-                'INSERT INTO articles (title, slug, content_html, school_id, article_type, image_path, created_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)'
-            );
-            $stmt->execute([
-                $form['title'],
-                $slug,
-                $form['content_html'],
-                $schoolId,
-                $form['article_type'],
-                $imagePath,
-                $createdBy,
-            ]);
-            $articleId = (int)$pdo->lastInsertId();
-
-            $faqQuestions = $_POST['faq_question'] ?? [];
-            $faqAnswers = $_POST['faq_answer'] ?? [];
-            if (is_array($faqQuestions) && is_array($faqAnswers)) {
-                $faqStmt = $pdo->prepare(
-                    'INSERT INTO article_faqs (article_id, question, answer, sequence_order) VALUES (?, ?, ?, ?)'
-                );
-                $sequence = 1;
-                foreach ($faqQuestions as $index => $questionText) {
-                    $questionText = trim((string)$questionText);
-                    $answerText = trim((string)($faqAnswers[$index] ?? ''));
-                    if ($questionText === '' && $answerText === '') {
-                        continue;
-                    }
-                    if ($questionText === '' || $answerText === '') {
-                        throw new RuntimeException('Each FAQ row needs both a question and an answer.');
-                    }
-                    $faqStmt->execute([$articleId, $questionText, $answerText, $sequence++]);
+            if ($postedEditId > 0) {
+                $slug = article_unique_slug($pdo, $form['title'], $postedEditId);
+                if ($imagePath === null) {
+                    $imagePath = $form['image_path'] !== '' ? $form['image_path'] : null;
                 }
+                $stmt = $pdo->prepare(
+                    'UPDATE articles
+                     SET title = ?, slug = ?, content_html = ?, school_id = ?, article_type = ?, image_path = ?, created_by = ?
+                     WHERE id = ?'
+                );
+                $stmt->execute([
+                    $form['title'],
+                    $slug,
+                    $form['content_html'],
+                    $schoolId,
+                    $form['article_type'],
+                    $imagePath,
+                    $createdBy,
+                    $postedEditId,
+                ]);
+                $articleId = $postedEditId;
+                $pdo->prepare('DELETE FROM article_faqs WHERE article_id = ?')->execute([$articleId]);
+                $success = 'Article updated: /articles/' . $slug;
+            } else {
+                $slug = article_unique_slug($pdo, $form['title']);
+                $stmt = $pdo->prepare(
+                    'INSERT INTO articles (title, slug, content_html, school_id, article_type, image_path, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)'
+                );
+                $stmt->execute([
+                    $form['title'],
+                    $slug,
+                    $form['content_html'],
+                    $schoolId,
+                    $form['article_type'],
+                    $imagePath,
+                    $createdBy,
+                ]);
+                $articleId = (int)$pdo->lastInsertId();
+                $success = 'Article saved and public slug created: /articles/' . $slug;
             }
 
-            $success = 'Article saved and public slug created: /articles/' . $slug;
+            $faqStmt = $pdo->prepare(
+                'INSERT INTO article_faqs (article_id, question, answer, sequence_order) VALUES (?, ?, ?, ?)'
+            );
+            $sequence = 1;
+            foreach ($faqFormRows as $faqRow) {
+                $questionText = trim((string)$faqRow['question']);
+                $answerText = trim((string)$faqRow['answer']);
+                if ($questionText === '' && $answerText === '') {
+                    continue;
+                }
+                if ($questionText === '' || $answerText === '') {
+                    throw new RuntimeException('Each FAQ row needs both a question and an answer.');
+                }
+                $faqStmt->execute([$articleId, $questionText, $answerText, $sequence++]);
+            }
+
             $form = [
+                'edit_id' => '',
                 'title' => '',
                 'content_html' => '',
                 'school_id' => '',
                 'article_type' => 'generic',
                 'created_by' => (string)$user['sub'],
+                'image_path' => '',
             ];
+            $faqFormRows = [['question' => '', 'answer' => '']];
         } catch (Throwable $e) {
             $errors[] = 'Save failed: ' . $e->getMessage();
         }
@@ -170,11 +243,12 @@ require_once dirname(__DIR__) . '/includes_header.php';
                 <?php echo csrf_field(); ?>
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                     <div>
-                        <h5 class="card-title mb-1">Create Article</h5>
+                        <h5 class="card-title mb-1"><?php echo $editId > 0 ? 'Edit Article' : 'Create Article'; ?></h5>
                         <div class="text-muted small">Bootstrap-form layout with Quill content and FAQ repeater.</div>
                     </div>
-                    <span class="badge text-bg-primary"><?php echo backend_can_edit($user) ? 'super_admin editing' : 'read-only for content_admin'; ?></span>
+                    <span class="badge text-bg-primary"><?php echo $editId > 0 ? 'super_admin edit mode' : 'create allowed for content_admin'; ?></span>
                 </div>
+                <input type="hidden" name="edit_id" value="<?php echo htmlspecialchars($form['edit_id']); ?>">
 
                 <div class="form-group mb-3">
                     <label class="form-label">Article Title</label>
@@ -232,6 +306,9 @@ require_once dirname(__DIR__) . '/includes_header.php';
                             <label class="form-label">Article Image</label>
                             <input type="file" class="form-control" name="image_file" accept=".jpg,.jpeg,.png,.gif,.webp,image/*">
                             <small class="form-text text-muted">Optional cover image for the public article page.</small>
+                            <?php if ($form['image_path'] !== ''): ?>
+                                <div class="small text-muted mt-2">Current image: <code><?php echo htmlspecialchars($form['image_path']); ?></code></div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -250,21 +327,23 @@ require_once dirname(__DIR__) . '/includes_header.php';
                 </div>
 
                 <div id="faq-rows" class="vstack gap-3">
-                    <div class="border rounded-3 p-3 bg-light faq-row">
-                        <div class="row g-2">
-                            <div class="col-md-5">
-                                <label class="form-label small">Question</label>
-                                <input type="text" name="faq_question[]" class="form-control" placeholder="FAQ question">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small">Answer</label>
-                                <textarea name="faq_answer[]" class="form-control" rows="2" placeholder="FAQ answer"></textarea>
-                            </div>
-                            <div class="col-md-1 d-flex align-items-end">
-                                <button type="button" class="btn btn-outline-danger btn-sm remove-faq-row">Remove</button>
+                    <?php foreach ($faqFormRows as $faqRow): ?>
+                        <div class="border rounded-3 p-3 bg-light faq-row">
+                            <div class="row g-2">
+                                <div class="col-md-5">
+                                    <label class="form-label small">Question</label>
+                                    <input type="text" name="faq_question[]" class="form-control" placeholder="FAQ question" value="<?php echo htmlspecialchars((string)$faqRow['question']); ?>">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small">Answer</label>
+                                    <textarea name="faq_answer[]" class="form-control" rows="2" placeholder="FAQ answer"><?php echo htmlspecialchars((string)$faqRow['answer']); ?></textarea>
+                                </div>
+                                <div class="col-md-1 d-flex align-items-end">
+                                    <button type="button" class="btn btn-outline-danger btn-sm remove-faq-row">Remove</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
 
                 <div class="mt-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
@@ -272,7 +351,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
                         Public URL preview:
                         <code id="slug-preview"><?php echo htmlspecialchars(url_for('articles/' . article_slugify($form['title'] ?: 'your-title-here'))); ?></code>
                     </div>
-                    <button class="btn btn-primary px-4" type="submit">Publish Article</button>
+                    <button class="btn btn-primary px-4" type="submit"><?php echo $editId > 0 ? 'Update Article' : 'Publish Article'; ?></button>
                 </div>
             </div>
         </form>
@@ -312,6 +391,11 @@ require_once dirname(__DIR__) . '/includes_header.php';
                                         <div class="small mt-1 text-break">
                                             <code><?php echo htmlspecialchars(url_for('articles/' . (string)$article['slug'])); ?></code>
                                         </div>
+                                        <?php if (backend_is_super_admin($user)): ?>
+                                            <div class="mt-2">
+                                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('backend/articles.php?edit=' . (int)$article['id'])); ?>">Edit</a>
+                                            </div>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </div>

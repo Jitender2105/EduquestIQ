@@ -21,8 +21,3 @@ declare(strict_types=1);
         <a class="btn btn-outline-secondary btn-sm eq-allow-nav" href="<?php echo htmlspecialchars(url_for('dashboard.php')); ?>">Dashboard</a>
     </div>
 </div>
-<?php
-if (isset($user) && is_array($user)) {
-    backend_readonly_notice($user);
-}
-?>
