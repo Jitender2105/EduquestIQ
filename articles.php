@@ -288,7 +288,7 @@ endif;
                                 </div>
                                 <div class="mt-auto d-flex justify-content-between align-items-center">
                                     <a href="<?php echo htmlspecialchars(url_for('articles/' . (string)$article['slug'])); ?>" class="btn btn-outline-primary btn-sm">Read more</a>
-                                    <span class="small text-muted">/articles/<?php echo htmlspecialchars((string)$article['slug']); ?></span>
+                                  
                                 </div>
                             </div>
                         </article>
