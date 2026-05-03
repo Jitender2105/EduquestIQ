@@ -586,7 +586,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <div class="eq-muted">Name, description, instruction, availability, and questions all in one screen.</div>
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
-                    <button type="submit" class="btn btn-outline-primary btn-sm" id="btn-add-question-top" name="action" value="add_question">Add More Question</button>
+                    <button type="submit" class="btn btn-outline-primary btn-sm" id="btn-add-question-top" name="action" value="add_question" formnovalidate>Add More Question</button>
                     <button type="submit" class="btn btn-primary btn-sm" name="action" value="save_bundle">Save Test</button>
                 </div>
             </div>
@@ -635,7 +635,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <h5 class="mb-0">Questions</h5>
                     <div class="eq-muted">Add questions, options, and correct answers directly in this form.</div>
                 </div>
-                <button type="submit" class="btn btn-outline-primary btn-sm" id="btn-add-question" name="action" value="add_question">Add More Question</button>
+                <button type="submit" class="btn btn-outline-primary btn-sm" id="btn-add-question" name="action" value="add_question" formnovalidate>Add More Question</button>
             </div>
 
             <div id="questions-builder" class="eq-questions-list">
@@ -651,7 +651,7 @@ require_once dirname(__DIR__) . '/includes_header.php';
             </div>
 
             <div class="mt-3 d-flex justify-content-end gap-2">
-                <button type="submit" class="btn btn-outline-primary" id="btn-add-question-bottom" name="action" value="add_question">Add More Question</button>
+                <button type="submit" class="btn btn-outline-primary" id="btn-add-question-bottom" name="action" value="add_question" formnovalidate>Add More Question</button>
                 <button type="submit" class="btn btn-primary" name="action" value="save_bundle">Save Test</button>
             </div>
         </div>
