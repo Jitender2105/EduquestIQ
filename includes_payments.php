@@ -13,6 +13,11 @@ function payment_gateway_key_secret(): string
     return (string)($GLOBALS['config']['razorpay_key_secret'] ?? '');
 }
 
+function payment_gateway_webhook_secret(): string
+{
+    return (string)($GLOBALS['config']['razorpay_webhook_secret'] ?? '');
+}
+
 function payment_support_email(): string
 {
     return (string)($GLOBALS['config']['payment_support_email'] ?? 'jitender@eduquestiq.com');
@@ -107,6 +112,23 @@ function test_purchase_row(PDO $pdo, int $testId, int $studentId): ?array
     return $row ?: null;
 }
 
+function test_purchase_find_by_order(PDO $pdo, string $orderId): ?array
+{
+    if (!test_purchase_table_exists($pdo)) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT *
+         FROM test_purchases
+         WHERE gateway_order_id = ?
+         LIMIT 1'
+    );
+    $stmt->execute([$orderId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
 function test_purchase_upsert_pending(PDO $pdo, int $testId, int $studentId, float $amountInr, string $orderId, array $notes = []): int
 {
     if (!test_purchase_table_exists($pdo)) {
@@ -175,6 +197,24 @@ function test_purchase_mark_paid(PDO $pdo, int $testId, int $studentId, string $
     ]);
 }
 
+function test_purchase_mark_failed(PDO $pdo, int $testId, int $studentId, string $orderId, ?string $paymentId, array $details = []): void
+{
+    if (!test_purchase_table_exists($pdo)) {
+        throw new RuntimeException('Purchase tracking table is missing.');
+    }
+
+    $notesJson = $details ? json_encode($details, JSON_UNESCAPED_UNICODE) : null;
+    $stmt = $pdo->prepare(
+        "UPDATE test_purchases
+         SET gateway_payment_id = ?,
+             payment_status = 'failed',
+             notes_json = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE test_id = ? AND student_id = ? AND gateway_order_id = ?"
+    );
+    $stmt->execute([$paymentId, $notesJson, $testId, $studentId, $orderId]);
+}
+
 function razorpay_signature_is_valid(string $orderId, string $paymentId, string $signature): bool
 {
     $secret = payment_gateway_key_secret();
@@ -183,6 +223,17 @@ function razorpay_signature_is_valid(string $orderId, string $paymentId, string 
     }
 
     $generated = hash_hmac('sha256', $orderId . '|' . $paymentId, $secret);
+    return hash_equals($generated, $signature);
+}
+
+function razorpay_webhook_signature_is_valid(string $payload, string $signature): bool
+{
+    $secret = payment_gateway_webhook_secret();
+    if ($secret === '' || $signature === '') {
+        return false;
+    }
+
+    $generated = hash_hmac('sha256', $payload, $secret);
     return hash_equals($generated, $signature);
 }
 
@@ -233,6 +284,88 @@ function razorpay_create_order_paise(int $amountPaise, string $receipt, array $n
     $data = json_decode((string)$response, true);
     if (!is_array($data) || empty($data['id'])) {
         throw new RuntimeException('Invalid Razorpay order response.');
+    }
+
+    return $data;
+}
+
+function razorpay_capture_payment(string $paymentId, int $amountPaise, string $currency = 'INR'): array
+{
+    if (!payment_gateway_ready()) {
+        throw new RuntimeException('Razorpay gateway is not configured.');
+    }
+    if ($amountPaise < 100) {
+        throw new RuntimeException('Razorpay capture amount must be at least 100 paise.');
+    }
+
+    $ch = curl_init('https://api.razorpay.com/v1/payments/' . rawurlencode($paymentId) . '/capture');
+    if (!$ch) {
+        throw new RuntimeException('Failed to initialize Razorpay capture request.');
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+        CURLOPT_USERPWD => payment_gateway_key_id() . ':' . payment_gateway_key_secret(),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode([
+            'amount' => $amountPaise,
+            'currency' => $currency,
+        ], JSON_UNESCAPED_UNICODE),
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $response = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($ch);
+
+    if ($response === false || $status < 200 || $status >= 300) {
+        throw new RuntimeException('Razorpay payment capture failed' . ($error !== '' ? ': ' . $error : '.'));
+    }
+
+    $data = json_decode((string)$response, true);
+    if (!is_array($data) || empty($data['id'])) {
+        throw new RuntimeException('Invalid Razorpay capture response.');
+    }
+
+    return $data;
+}
+
+function razorpay_fetch_payment(string $paymentId): array
+{
+    if (!payment_gateway_ready()) {
+        throw new RuntimeException('Razorpay gateway is not configured.');
+    }
+
+    $paymentId = trim($paymentId);
+    if ($paymentId === '') {
+        throw new RuntimeException('Payment id is required.');
+    }
+
+    $ch = curl_init('https://api.razorpay.com/v1/payments/' . rawurlencode($paymentId));
+    if (!$ch) {
+        throw new RuntimeException('Failed to initialize Razorpay request.');
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+        CURLOPT_USERPWD => payment_gateway_key_id() . ':' . payment_gateway_key_secret(),
+        CURLOPT_TIMEOUT => 30,
+    ]);
+
+    $response = curl_exec($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($ch);
+
+    if ($response === false || $status < 200 || $status >= 300) {
+        throw new RuntimeException('Razorpay payment lookup failed' . ($error !== '' ? ': ' . $error : '.'));
+    }
+
+    $data = json_decode((string)$response, true);
+    if (!is_array($data) || empty($data['id'])) {
+        throw new RuntimeException('Invalid Razorpay payment lookup response.');
     }
 
     return $data;

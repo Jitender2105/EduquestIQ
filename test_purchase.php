@@ -233,11 +233,41 @@ if (!payment_gateway_ready()) {
                 }
             });
 
-            rzp.on('payment.failed', function (response) {
+            rzp.on('payment.failed', async function (response) {
                 const reason = response && response.error && response.error.description
                     ? response.error.description
                     : 'Payment failed. Please try again.';
-                showMessage('danger', reason);
+
+                const metadata = response && response.error && response.error.metadata
+                    ? response.error.metadata
+                    : {};
+                const failedOrderId = metadata.order_id || '';
+                const failedPaymentId = metadata.payment_id || '';
+
+                if (failedOrderId && failedPaymentId) {
+                    showMessage('info', 'Payment response received. Checking Razorpay status...');
+                    try {
+                        const reconcile = await postJson(<?php echo json_encode(url_for('api/reconcile-payment.php')); ?>, {
+                            test_id: <?php echo (int)$testId; ?>,
+                            razorpay_order_id: failedOrderId,
+                            razorpay_payment_id: failedPaymentId,
+                            error: response && response.error ? response.error : null
+                        });
+
+                        if (reconcile.success && reconcile.redirect_url) {
+                            showMessage('success', 'Payment captured. Opening your test...');
+                            window.location.href = reconcile.redirect_url;
+                            return;
+                        }
+                    } catch (error) {
+                        showMessage('danger', error.message || reason);
+                        payButton.disabled = false;
+                        return;
+                    }
+                } else {
+                    showMessage('danger', reason);
+                }
+
                 payButton.disabled = false;
             });
 

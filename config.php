@@ -74,6 +74,7 @@ $config = [
     'jwt_expiry_seconds' => 60 * 60 * 24 * 7, // 7 days
     'razorpay_key_id' => '',
     'razorpay_key_secret' => '',
+    'razorpay_webhook_secret' => '',
     'payment_support_email' => 'jitender@eduquestiq.com',
     'base_url' => '',
 ];
@@ -90,6 +91,7 @@ $env = load_env_file(__DIR__ . '/.env');
 $envMap = [
     'RAZORPAY_KEY_ID' => 'razorpay_key_id',
     'RAZORPAY_KEY_SECRET' => 'razorpay_key_secret',
+    'RAZORPAY_WEBHOOK_SECRET' => 'razorpay_webhook_secret',
     'PAYMENT_SUPPORT_EMAIL' => 'payment_support_email',
     'BASE_URL' => 'base_url',
 ];
