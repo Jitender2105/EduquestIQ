@@ -45,6 +45,11 @@ function amount_in_paise(float $inr): int
     return (int)round($inr * 100);
 }
 
+function inr_from_paise(int $paise): float
+{
+    return $paise / 100;
+}
+
 function price_from_paise(int $paise): string
 {
     return number_format($paise / 100, 2);
@@ -183,12 +188,20 @@ function razorpay_signature_is_valid(string $orderId, string $paymentId, string 
 
 function razorpay_create_order(float $amountInr, string $receipt, array $notes = []): array
 {
+    return razorpay_create_order_paise(amount_in_paise($amountInr), $receipt, $notes);
+}
+
+function razorpay_create_order_paise(int $amountPaise, string $receipt, array $notes = []): array
+{
     if (!payment_gateway_ready()) {
         throw new RuntimeException('Razorpay gateway is not configured.');
     }
+    if ($amountPaise < 100) {
+        throw new RuntimeException('Razorpay order amount must be at least 100 paise.');
+    }
 
     $payload = [
-        'amount' => amount_in_paise($amountInr),
+        'amount' => $amountPaise,
         'currency' => payment_gateway_currency(),
         'receipt' => $receipt,
         'notes' => $notes,

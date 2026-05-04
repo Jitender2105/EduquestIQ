@@ -27,7 +27,7 @@ DirectoryIndex index.php
     RewriteRule ^(.+)$ $1.php [L,QSA]
 
     # Protect sensitive files
-    RewriteRule ^(config\.php|schema\.sql|upgrade\.sql|includes_.*|composer\.json|DEPLOYMENT\.md)$ - [F,L]
+    RewriteRule ^(\.env|config\.php|config\.local\.php|schema\.sql|upgrade\.sql|includes_.*|composer\.json|composer\.lock|DEPLOYMENT\.md)$ - [F,L]
     RewriteRule ^uploads/.*\.php$ - [F,L]
 </IfModule>
 

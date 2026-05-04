@@ -39,55 +39,8 @@ if (test_purchase_is_paid($pdo, $testId, (int)$user['sub'])) {
 }
 
 $errors = [];
-$purchaseRow = test_purchase_row($pdo, $testId, (int)$user['sub']);
-$pendingOrderId = $purchaseRow['gateway_order_id'] ?? '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['payment_action'] ?? '') === 'verify') {
-    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
-        $errors[] = 'Invalid CSRF token.';
-    } else {
-        $orderId = trim((string)($_POST['razorpay_order_id'] ?? ''));
-        $paymentId = trim((string)($_POST['razorpay_payment_id'] ?? ''));
-        $signature = trim((string)($_POST['razorpay_signature'] ?? ''));
-        if ($orderId === '' || $paymentId === '' || $signature === '') {
-            $errors[] = 'Payment details are incomplete.';
-        } elseif ($pendingOrderId !== '' && $orderId !== $pendingOrderId) {
-            $errors[] = 'Payment order mismatch.';
-        } elseif (!razorpay_signature_is_valid($orderId, $paymentId, $signature)) {
-            $errors[] = 'Payment signature verification failed.';
-        } else {
-            test_purchase_mark_paid($pdo, $testId, (int)$user['sub'], $orderId, $paymentId, $signature, $priceInr);
-            header('Location: ' . url_for('test_attempt.php?id=' . $testId . '&paid=1'));
-            exit;
-        }
-    }
-}
-
-$order = null;
-if ($pendingOrderId !== '' && $purchaseRow && ($purchaseRow['payment_status'] ?? '') === 'pending') {
-    $order = [
-        'id' => $pendingOrderId,
-        'amount' => amount_in_paise($priceInr),
-        'currency' => payment_gateway_currency(),
-    ];
-} elseif (payment_gateway_ready()) {
-    try {
-        $receipt = 'test-' . $testId . '-student-' . (int)$user['sub'] . '-' . time();
-        $order = razorpay_create_order($priceInr, $receipt, [
-            'test_id' => (string)$testId,
-            'student_id' => (string)$user['sub'],
-            'test_title' => (string)$test['title'],
-            'support_email' => payment_support_email(),
-        ]);
-        test_purchase_upsert_pending($pdo, $testId, (int)$user['sub'], $priceInr, (string)$order['id'], [
-            'test_title' => (string)$test['title'],
-            'student_name' => (string)$user['name'],
-        ]);
-        $pendingOrderId = (string)$order['id'];
-    } catch (Throwable $e) {
-        $errors[] = 'Could not start payment checkout: ' . $e->getMessage();
-    }
-} else {
+if (!payment_gateway_ready()) {
     $errors[] = 'Payment gateway is not configured. Please contact ' . payment_support_email() . '.';
 }
 ?>
@@ -153,18 +106,12 @@ if ($pendingOrderId !== '' && $purchaseRow && ($purchaseRow['payment_status'] ??
                         <li>You complete payment using cards, UPI, netbanking, or wallet methods supported by Razorpay.</li>
                         <li>After payment, the test becomes available immediately.</li>
                     </ol>
-                    <?php if ($order && empty($errors)): ?>
-                        <form id="payment-form" method="post">
-                            <?php echo csrf_field(); ?>
-                            <input type="hidden" name="payment_action" value="verify">
-                            <input type="hidden" name="test_id" value="<?php echo (int)$testId; ?>">
-                            <input type="hidden" name="razorpay_order_id" id="razorpay_order_id">
-                            <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id">
-                            <input type="hidden" name="razorpay_signature" id="razorpay_signature">
-                            <button type="button" id="pay-now" class="btn btn-primary btn-lg w-100">
-                                Pay <?php echo htmlspecialchars(test_price_label($priceInr)); ?>
-                            </button>
-                        </form>
+                    <?php if (empty($errors)): ?>
+                        <input type="hidden" id="payment-csrf-token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                        <div id="payment-message" class="alert d-none mb-3" role="alert"></div>
+                        <button type="button" id="pay-now" class="btn btn-primary btn-lg w-100">
+                            Pay <?php echo htmlspecialchars(test_price_label($priceInr)); ?>
+                        </button>
                     <?php else: ?>
                         <div class="alert alert-warning mb-0">Payment checkout is not ready yet.</div>
                     <?php endif; ?>
@@ -194,39 +141,106 @@ if ($pendingOrderId !== '' && $purchaseRow && ($purchaseRow['payment_status'] ??
     </div>
 </div>
 
-<?php if ($order && empty($errors)): ?>
+<?php if (empty($errors)): ?>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script>
     (function () {
-        const options = {
-            key: <?php echo json_encode(payment_gateway_key_id()); ?>,
-            amount: <?php echo (int)amount_in_paise($priceInr); ?>,
-            currency: <?php echo json_encode(payment_gateway_currency()); ?>,
-            name: 'EduquestIQ',
-            description: <?php echo json_encode((string)$test['title']); ?>,
-            order_id: <?php echo json_encode((string)$order['id']); ?>,
-            prefill: {
-                name: <?php echo json_encode((string)$user['name']); ?>,
-                email: <?php echo json_encode((string)$user['email']); ?>
-            },
-            handler: function (response) {
-                document.getElementById('razorpay_order_id').value = response.razorpay_order_id || '';
-                document.getElementById('razorpay_payment_id').value = response.razorpay_payment_id || '';
-                document.getElementById('razorpay_signature').value = response.razorpay_signature || '';
-                document.getElementById('payment-form').submit();
-            },
-            theme: {
-                color: '#4374ff'
-            },
-            modal: {
-                ondismiss: function () {
-                    // Keep user on page so they can retry.
-                }
-            }
-        };
+        const payButton = document.getElementById('pay-now');
+        const csrfToken = document.getElementById('payment-csrf-token').value;
+        const message = document.getElementById('payment-message');
 
-        const rzp = new Razorpay(options);
-        document.getElementById('pay-now').addEventListener('click', function () {
+        function showMessage(type, text) {
+            message.className = 'alert alert-' + type + ' mb-3';
+            message.textContent = text;
+        }
+
+        async function postJson(url, payload) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json().catch(function () {
+                return {};
+            });
+            if (!response.ok || data.success === false) {
+                throw new Error(data.error || 'Payment request failed.');
+            }
+            return data;
+        }
+
+        payButton.addEventListener('click', async function () {
+            payButton.disabled = true;
+            showMessage('info', 'Preparing secure payment...');
+
+            let order;
+            try {
+                order = await postJson(<?php echo json_encode(url_for('api/create-order.php')); ?>, {
+                    amount: <?php echo (int)amount_in_paise($priceInr); ?>,
+                    currency: <?php echo json_encode(payment_gateway_currency()); ?>,
+                    receipt: <?php echo json_encode('test-' . $testId); ?>,
+                    test_id: <?php echo (int)$testId; ?>
+                });
+            } catch (error) {
+                showMessage('danger', error.message);
+                payButton.disabled = false;
+                return;
+            }
+
+            if (order.already_paid && order.redirect_url) {
+                window.location.href = order.redirect_url;
+                return;
+            }
+
+            const rzp = new Razorpay({
+                key: order.key_id,
+                amount: order.amount,
+                currency: order.currency,
+                name: 'EduquestIQ',
+                description: <?php echo json_encode((string)$test['title']); ?>,
+                order_id: order.order_id,
+                prefill: {
+                    name: <?php echo json_encode((string)$user['name']); ?>,
+                    email: <?php echo json_encode((string)$user['email']); ?>
+                },
+                handler: async function (response) {
+                    try {
+                        const verify = await postJson(<?php echo json_encode(url_for('api/verify-payment.php')); ?>, {
+                            test_id: <?php echo (int)$testId; ?>,
+                            razorpay_order_id: response.razorpay_order_id || '',
+                            razorpay_payment_id: response.razorpay_payment_id || '',
+                            razorpay_signature: response.razorpay_signature || ''
+                        });
+                        showMessage('success', 'Payment verified. Opening your test...');
+                        window.location.href = verify.redirect_url || <?php echo json_encode(url_for('test_attempt.php?id=' . $testId . '&paid=1')); ?>;
+                    } catch (error) {
+                        showMessage('danger', error.message);
+                        payButton.disabled = false;
+                    }
+                },
+                theme: {
+                    color: '#4374ff'
+                },
+                modal: {
+                    ondismiss: function () {
+                        showMessage('warning', 'Payment was cancelled. You can try again when ready.');
+                        payButton.disabled = false;
+                    }
+                }
+            });
+
+            rzp.on('payment.failed', function (response) {
+                const reason = response && response.error && response.error.description
+                    ? response.error.description
+                    : 'Payment failed. Please try again.';
+                showMessage('danger', reason);
+                payButton.disabled = false;
+            });
+
             rzp.open();
         });
     })();

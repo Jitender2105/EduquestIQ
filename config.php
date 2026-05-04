@@ -22,6 +22,46 @@ if (session_status() === PHP_SESSION_NONE) {
 
 date_default_timezone_set('UTC');
 
+function load_env_file(string $path): array
+{
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $values = [];
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if (!is_array($lines)) {
+        return [];
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+            continue;
+        }
+
+        [$key, $value] = explode('=', $line, 2);
+        $key = trim($key);
+        $value = trim($value);
+        if ($key === '') {
+            continue;
+        }
+
+        if ((str_starts_with($value, '"') && str_ends_with($value, '"'))
+            || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
+            $value = substr($value, 1, -1);
+        }
+
+        $values[$key] = $value;
+        if (getenv($key) === false) {
+            putenv($key . '=' . $value);
+            $_ENV[$key] = $value;
+        }
+    }
+
+    return $values;
+}
+
 // Default configuration (safe to commit). Override in config.local.php for local/production secrets.
 $config = [
     'db_host' => 'localhost',
@@ -43,6 +83,22 @@ if (is_file($localConfigFile)) {
     $local = require $localConfigFile;
     if (is_array($local)) {
         $config = array_replace($config, $local);
+    }
+}
+
+$env = load_env_file(__DIR__ . '/.env');
+$envMap = [
+    'RAZORPAY_KEY_ID' => 'razorpay_key_id',
+    'RAZORPAY_KEY_SECRET' => 'razorpay_key_secret',
+    'PAYMENT_SUPPORT_EMAIL' => 'payment_support_email',
+    'BASE_URL' => 'base_url',
+];
+foreach ($envMap as $envKey => $configKey) {
+    $value = getenv($envKey);
+    if ($value !== false && trim((string)$value) !== '') {
+        $config[$configKey] = (string)$value;
+    } elseif (isset($env[$envKey]) && trim((string)$env[$envKey]) !== '') {
+        $config[$configKey] = (string)$env[$envKey];
     }
 }
 
