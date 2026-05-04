@@ -23,6 +23,18 @@ function payment_gateway_ready(): bool
     return payment_gateway_key_id() !== '' && payment_gateway_key_secret() !== '';
 }
 
+function payment_gateway_mode(): string
+{
+    $keyId = payment_gateway_key_id();
+    if (str_starts_with($keyId, 'rzp_live_')) {
+        return 'live';
+    }
+    if (str_starts_with($keyId, 'rzp_test_')) {
+        return 'test';
+    }
+    return 'unknown';
+}
+
 function payment_gateway_currency(): string
 {
     return 'INR';
@@ -200,7 +212,6 @@ function razorpay_create_order(float $amountInr, string $receipt, array $notes =
     $response = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $error = curl_error($ch);
-    curl_close($ch);
 
     if ($response === false || $status < 200 || $status >= 300) {
         throw new RuntimeException('Razorpay order creation failed' . ($error !== '' ? ': ' . $error : '.'));

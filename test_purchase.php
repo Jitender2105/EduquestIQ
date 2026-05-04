@@ -131,7 +131,12 @@ if ($pendingOrderId !== '' && $purchaseRow && ($purchaseRow['payment_status'] ??
     <div class="eq-purchase-hero mb-4">
         <div class="row g-4 align-items-center">
             <div class="col-lg-7">
-                <div class="badge text-bg-primary mb-3">Paid Test Access</div>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge text-bg-primary">Paid Test Access</span>
+                    <span class="badge <?php echo payment_gateway_mode() === 'live' ? 'text-bg-success' : 'text-bg-warning text-dark'; ?>">
+                        Razorpay <?php echo htmlspecialchars(strtoupper(payment_gateway_mode())); ?> mode
+                    </span>
+                </div>
                 <h3 class="mb-3"><?php echo htmlspecialchars((string)$test['title']); ?></h3>
                 <p class="mb-3 text-muted"><?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 260, '...')); ?></p>
                 <div class="d-flex flex-wrap gap-2">
