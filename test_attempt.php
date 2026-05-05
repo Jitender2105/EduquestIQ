@@ -284,7 +284,7 @@ if ($questionIds) {
     <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-link">&larr; Back to tests</a>
 </div>
 
-<div class="eq-backend-panel mb-3">
+<div class="eq-backend-panel mb-3 d-none" id="attempt-summary-panel">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
@@ -328,17 +328,17 @@ if ($questionIds) {
                 <strong>Start countdown:</strong>
                 <span id="start-countdown"></span>
             </div>
-            <button type="button" class="btn btn-primary" id="btn-start-test" disabled>Start Test</button>
+            <button type="button" class="btn btn-primary" id="btn-start-test" disabled>Proceed</button>
         <?php elseif ($isClosed): ?>
             <div class="alert alert-danger mb-0">This test has already ended and can no longer be attempted.</div>
         <?php else: ?>
-            <div class="alert alert-primary mb-3">Read the instructions and then start the test when you are ready.</div>
-            <button type="button" class="btn btn-primary" id="btn-start-test">Start Test</button>
+            <div class="alert alert-primary mb-3">Read the instructions carefully. The test questions will appear only after you click Proceed.</div>
+            <button type="button" class="btn btn-primary" id="btn-start-test">Proceed</button>
         <?php endif; ?>
     </div>
 </div>
 
-<div class="eq-attempt-shell <?php echo ($isUpcoming || $isClosed) ? 'd-none' : ''; ?>" id="sira-attempt-app">
+<div class="eq-attempt-shell d-none" id="sira-attempt-app">
     <aside class="eq-attempt-sidebar">
         <div class="eq-page-head mb-3">
             <h2 class="mb-1"><?php echo htmlspecialchars($test['title']); ?></h2>
@@ -457,6 +457,7 @@ if ($questionIds) {
 (function () {
     const form = document.getElementById('sira-attempt-form');
     const app = document.getElementById('sira-attempt-app');
+    const summaryPanel = document.getElementById('attempt-summary-panel');
     const instructionScreen = document.getElementById('instruction-screen');
     const startButton = document.getElementById('btn-start-test');
     const cards = Array.from(document.querySelectorAll('[data-question-card]'));
@@ -654,6 +655,7 @@ if ($questionIds) {
         attemptLimitSeconds = Math.min(durationSeconds, remainingToEnd || durationSeconds);
         startedAt = Date.now();
         instructionScreen.classList.add('d-none');
+        if (summaryPanel) summaryPanel.classList.remove('d-none');
         app.classList.remove('d-none');
         setVisited(0);
         showQuestion(0);
@@ -700,10 +702,7 @@ if ($questionIds) {
         finishTest(false);
     });
 
-    if (!<?php echo $isUpcoming ? 'true' : 'false'; ?> && !<?php echo $isClosed ? 'true' : 'false'; ?>) {
-        showQuestion(0);
-        renderCounts();
-    }
+    renderCounts();
 })();
 </script>
 

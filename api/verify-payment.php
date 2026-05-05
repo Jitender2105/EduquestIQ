@@ -66,7 +66,45 @@ try {
             $signature,
             (float)($purchase['amount_inr'] ?? 0)
         );
-        $redirectUrl = url_for('test_attempt.php?id=' . $testId . '&paid=1');
+        $redirectUrl = url_for('tests.php?purchase=success');
+    } else {
+        $testPurchases = test_purchase_rows_by_order($pdo, $orderId);
+        $paperPurchases = practice_paper_purchase_rows_by_order($pdo, $orderId);
+        if (!$testPurchases && !$paperPurchases) {
+            api_verify_json_response(400, ['success' => false, 'error' => 'Payment order mismatch.']);
+        }
+
+        foreach ($testPurchases as $purchase) {
+            if ((int)$purchase['student_id'] !== (int)$user['sub']) {
+                api_verify_json_response(400, ['success' => false, 'error' => 'Payment order mismatch.']);
+            }
+            test_purchase_mark_paid(
+                $pdo,
+                (int)$purchase['test_id'],
+                (int)$user['sub'],
+                $orderId,
+                $paymentId,
+                $signature,
+                (float)($purchase['amount_inr'] ?? 0)
+            );
+        }
+
+        foreach ($paperPurchases as $purchase) {
+            if ((int)$purchase['student_id'] !== (int)$user['sub']) {
+                api_verify_json_response(400, ['success' => false, 'error' => 'Payment order mismatch.']);
+            }
+            practice_paper_purchase_mark_paid(
+                $pdo,
+                (int)$purchase['practice_paper_id'],
+                (int)$user['sub'],
+                $orderId,
+                $paymentId,
+                $signature,
+                (float)($purchase['amount_inr'] ?? 0)
+            );
+        }
+
+        $redirectUrl = url_for('tests.php?purchase=success');
     }
 
     api_verify_json_response(200, [

@@ -9,6 +9,7 @@ declare(strict_types=1);
         <a class="btn btn-outline-primary btn-sm eq-allow-nav" href="<?php echo htmlspecialchars(url_for('backend/attributes.php')); ?>">Attributes</a>
         <a class="btn btn-outline-primary btn-sm eq-allow-nav" href="<?php echo htmlspecialchars(url_for('backend/questions.php')); ?>">Questions</a>
         <a class="btn btn-outline-primary btn-sm eq-allow-nav" href="<?php echo htmlspecialchars(url_for('backend/tests.php')); ?>">Tests</a>
+        <a class="btn btn-outline-primary btn-sm eq-allow-nav" href="<?php echo htmlspecialchars(url_for('backend/practice_papers.php')); ?>">Practice Papers</a>
         <a class="btn btn-outline-primary btn-sm eq-allow-nav" href="<?php echo htmlspecialchars(url_for('backend/courses.php')); ?>">Courses</a>
         <a class="btn btn-outline-primary btn-sm eq-allow-nav" href="<?php echo htmlspecialchars(url_for('backend/videos.php')); ?>">Videos</a>
         <a class="btn btn-outline-primary btn-sm eq-allow-nav" href="<?php echo htmlspecialchars(url_for('backend/materials.php')); ?>">Materials</a>

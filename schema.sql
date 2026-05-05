@@ -3,6 +3,7 @@
 
 SET NAMES utf8mb4;
 SET time_zone = '+00:00';
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- Optional: create database (uncomment and adjust name if needed)
 -- CREATE DATABASE IF NOT EXISTS eduquestiq CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -22,6 +23,9 @@ DROP TABLE IF EXISTS courses;
 DROP TABLE IF EXISTS test_answers;
 DROP TABLE IF EXISTS test_attempts;
 DROP TABLE IF EXISTS test_questions;
+DROP TABLE IF EXISTS practice_paper_purchases;
+DROP TABLE IF EXISTS practice_papers;
+DROP TABLE IF EXISTS test_purchases;
 DROP TABLE IF EXISTS tests;
 DROP TABLE IF EXISTS question_attribute_mapping;
 DROP TABLE IF EXISTS question_options;
@@ -30,7 +34,6 @@ DROP TABLE IF EXISTS path_courses;
 DROP TABLE IF EXISTS learning_paths;
 DROP TABLE IF EXISTS article_faqs;
 DROP TABLE IF EXISTS articles;
-DROP TABLE IF EXISTS test_purchases;
 DROP TABLE IF EXISTS attributes;
 DROP TABLE IF EXISTS sub_attributes;
 DROP TABLE IF EXISTS login_attempts;
@@ -39,6 +42,7 @@ DROP TABLE IF EXISTS teacher_feedback;
 DROP TABLE IF EXISTS attendance;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS schools;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE schools (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -195,9 +199,48 @@ CREATE TABLE test_purchases (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uniq_test_student_purchase (test_id, student_id),
-  UNIQUE KEY uniq_gateway_order (gateway_order_id),
+  KEY idx_test_gateway_order (gateway_order_id),
   CONSTRAINT fk_tp_test FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE,
   CONSTRAINT fk_tp_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE practice_papers (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  test_id INT NOT NULL,
+  name VARCHAR(180) NOT NULL,
+  description TEXT NULL,
+  class_name VARCHAR(40) NOT NULL,
+  paper_year VARCHAR(20) NOT NULL,
+  access_type ENUM('free','paid') NOT NULL DEFAULT 'free',
+  amount_inr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  pdf_file_path VARCHAR(255) NOT NULL,
+  status ENUM('draft','published','archived') NOT NULL DEFAULT 'published',
+  created_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_practice_papers_test FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE,
+  CONSTRAINT fk_practice_papers_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE practice_paper_purchases (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  practice_paper_id INT NOT NULL,
+  student_id INT NOT NULL,
+  gateway ENUM('razorpay') NOT NULL DEFAULT 'razorpay',
+  gateway_order_id VARCHAR(120) NOT NULL,
+  gateway_payment_id VARCHAR(120) NULL,
+  gateway_signature VARCHAR(255) NULL,
+  amount_inr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  payment_status ENUM('pending','paid','failed','cancelled') NOT NULL DEFAULT 'pending',
+  notes_json JSON NULL,
+  paid_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_practice_student_purchase (practice_paper_id, student_id),
+  KEY idx_practice_gateway_order (gateway_order_id),
+  CONSTRAINT fk_ppp_paper FOREIGN KEY (practice_paper_id) REFERENCES practice_papers(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ppp_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE test_questions (

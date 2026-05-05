@@ -90,3 +90,20 @@ function store_material_upload(array $validatedFile): string
     return 'uploads/materials/' . $basename;
 }
 
+function validate_pdf_upload(array $file): array
+{
+    return validate_material_upload($file, 'pdf');
+}
+
+function store_practice_paper_upload(array $validatedFile): string
+{
+    $dir = ensure_upload_dir('uploads/practice-papers');
+    $basename = bin2hex(random_bytes(12)) . '.pdf';
+    $target = $dir . '/' . $basename;
+
+    if (!move_uploaded_file($validatedFile['tmp_name'], $target)) {
+        throw new RuntimeException('Failed to move uploaded file.');
+    }
+
+    return 'uploads/practice-papers/' . $basename;
+}

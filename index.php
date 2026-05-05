@@ -212,6 +212,27 @@ $testimonials = [
         border-color: rgba(99, 102, 241, 0.7);
         box-shadow: 0 0 0 0.18rem rgba(99, 102, 241, 0.14);
     }
+    .eq-home-lead-card .select2-container {
+        width: 100% !important;
+    }
+    .eq-home-lead-card .select2-container--default .select2-selection--multiple {
+        min-height: 42px;
+        border: 0;
+        border-radius: 12px;
+        padding: 4px 6px;
+        background: rgba(255, 255, 255, 0.97);
+    }
+    .eq-home-lead-card .select2-container--default.select2-container--focus .select2-selection--multiple {
+        box-shadow: 0 0 0 0.18rem rgba(99, 102, 241, 0.14);
+    }
+    .eq-home-lead-card .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        border: 0;
+        border-radius: 999px;
+        background: #e8efff;
+        color: #24306b;
+        font-weight: 700;
+        padding: 3px 8px;
+    }
     .eq-home-lead-card .btn {
         width: 100%;
         border-radius: 12px;
@@ -224,9 +245,6 @@ $testimonials = [
         border: 0;
         color: #24306b;
         box-shadow: 0 10px 22px rgba(255, 255, 255, 0.18);
-    }
-    .eq-home-multiselect {
-        min-height: 108px;
     }
     .eq-sira-grid {
         display: grid;
@@ -351,15 +369,15 @@ $testimonials = [
                     <input class="form-control form-control-sm" id="lead-parent-mobile" name="parent_mobile" maxlength="20" required value="<?php echo htmlspecialchars($leadForm['parent_mobile']); ?>">
                 </div>
                 <div class="mb-3 eq-full-span">
-                    <label class="form-label" for="lead-exam">Exam (Multi Select)</label>
-                    <select class="form-select form-select-sm eq-home-multiselect" id="lead-exam" name="exam[]" multiple required>
+                    <label class="form-label" for="lead-exam">Exam</label>
+                    <select class="form-select form-select-sm eq-home-select2" id="lead-exam" name="exam[]" multiple required>
                         <?php foreach ($examOptions as $code => $label): ?>
                             <option value="<?php echo htmlspecialchars($code); ?>" <?php echo in_array($code, $leadForm['exam'], true) ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($label); ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <div class="text-white-50 small mt-1">Hold Ctrl / Cmd to choose multiple exams.</div>
+                    <div class="text-white-50 small mt-1">Search and choose one or more exams.</div>
                 </div>
                 <button class="btn btn-light btn-sm" type="submit">Submit Lead</button>
             </form>
@@ -546,4 +564,20 @@ $testimonials = [
 
 <?php
 $eqCustomHomeFooter = true;
+?>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+if (window.jQuery && jQuery.fn.select2) {
+    jQuery(function ($) {
+        $('#lead-exam').select2({
+            placeholder: 'Search and select exams',
+            width: '100%',
+            closeOnSelect: false
+        });
+    });
+}
+</script>
+<?php
 require_once __DIR__ . '/includes_footer.php';

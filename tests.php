@@ -2,12 +2,14 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
+require_once __DIR__ . '/includes_csrf.php';
 require_once __DIR__ . '/includes_fallback.php';
 require_once __DIR__ . '/includes_payments.php';
 
 $pdo = get_pdo();
 
 $tests = [];
+$practicePapers = [];
 if ($authUser) {
     $stmt = $pdo->query(
         'SELECT t.id, t.title, t.description, t.start_at, t.end_at, t.total_marks, t.duration_minutes, t.price_inr, t.created_at,
@@ -17,11 +19,22 @@ if ($authUser) {
          ORDER BY t.created_at DESC'
     );
     $tests = $stmt->fetchAll();
+
+    if (practice_paper_table_exists($pdo)) {
+        $practicePapers = $pdo->query(
+            'SELECT pp.*, t.title AS test_title
+             FROM practice_papers pp
+             JOIN tests t ON t.id = pp.test_id
+             WHERE pp.status = "published"
+             ORDER BY pp.created_at DESC, pp.id DESC'
+        )->fetchAll();
+    }
 }
 
 $attempted = [];
 $attemptIds = [];
 $paidTests = [];
+$paidPracticePapers = [];
 $nowUtc = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 if ($authUser && $authUser['role'] === 'student') {
     $stmt = $pdo->prepare(
@@ -50,6 +63,18 @@ if ($authUser && $authUser['role'] === 'student') {
             $paidTests[(int)$row['test_id']] = true;
         }
     }
+
+    if (practice_paper_purchase_table_exists($pdo)) {
+        $stmt = $pdo->prepare(
+            'SELECT practice_paper_id
+             FROM practice_paper_purchases
+             WHERE student_id = ? AND payment_status = "paid"'
+        );
+        $stmt->execute([(int)$authUser['sub']]);
+        foreach ($stmt->fetchAll() as $row) {
+            $paidPracticePapers[(int)$row['practice_paper_id']] = true;
+        }
+    }
 }
 ?>
 
@@ -58,7 +83,11 @@ if ($authUser && $authUser['role'] === 'student') {
     <p class="subtitle">Attempt MCQ and subjective assessments mapped to attributes and sub-attributes for live skill tracking.</p>
 </div>
 
-<?php if (!$tests): ?>
+<?php if (!empty($_GET['purchase'])): ?>
+    <div class="alert alert-success">Purchase status updated. You can start purchased tests or download purchased practice papers below.</div>
+<?php endif; ?>
+
+<?php if (!$tests && !$practicePapers): ?>
     <?php if (!$authUser): ?>
         <?php
         render_static_fallback([
@@ -105,6 +134,24 @@ if ($authUser && $authUser['role'] === 'student') {
     ?>
     <?php endif; ?>
 <?php else: ?>
+    <?php if ($authUser && $authUser['role'] === 'student'): ?>
+        <input type="hidden" id="payment-csrf-token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+        <div id="payment-message" class="alert d-none" role="alert"></div>
+        <div class="card p-3 mb-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h5 class="mb-1">Bulk Purchase</h5>
+                    <div class="text-muted small">Select multiple paid tests and practice papers, then pay once.</div>
+                </div>
+                <button type="button" class="btn btn-primary" id="bulk-buy-button">Buy Selected Items</button>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <div class="eq-page-head text-start">
+        <h3>Tests</h3>
+        <p class="subtitle">You can buy upcoming tests before the start date. Starting is enabled only during the test window.</p>
+    </div>
     <div class="row g-3">
         <?php foreach ($tests as $test): ?>
             <?php
@@ -122,6 +169,9 @@ if ($authUser && $authUser['role'] === 'student') {
                     $statusClass = 'text-bg-secondary';
                     $canAttempt = false;
                 }
+                $testPrice = (float)($test['price_inr'] ?? 0);
+                $isPaidTest = $testPrice > 0;
+                $hasPaidTest = !$isPaidTest || !empty($paidTests[(int)$test['id']]);
             ?>
             <div class="col-md-4">
                 <div class="card h-100">
@@ -149,20 +199,22 @@ if ($authUser && $authUser['role'] === 'student') {
                                        class="btn btn-sm btn-outline-primary">
                                         View SIRA Report
                                     </a>
-                                <?php elseif ($canAttempt): ?>
-                                    <?php if ((float)($test['price_inr'] ?? 0) > 0 && empty($paidTests[(int)$test['id']])): ?>
-                                        <a href="<?php echo htmlspecialchars(url_for('test_purchase.php?id=' . (int)$test['id'])); ?>"
-                                           class="btn btn-sm btn-primary">
-                                            Buy for <?php echo htmlspecialchars(test_price_label((float)$test['price_inr'])); ?>
-                                        </a>
-                                    <?php else: ?>
+                                <?php else: ?>
+                                    <?php if (!$hasPaidTest): ?>
+                                        <div class="form-check">
+                                            <input class="form-check-input bulk-purchase-item" type="checkbox" value="test:<?php echo (int)$test['id']; ?>" id="buy-test-<?php echo (int)$test['id']; ?>" data-title="<?php echo htmlspecialchars($test['title']); ?>" data-amount="<?php echo (int)amount_in_paise($testPrice); ?>">
+                                            <label class="form-check-label small" for="buy-test-<?php echo (int)$test['id']; ?>">
+                                                Buy for <?php echo htmlspecialchars(test_price_label($testPrice)); ?>
+                                            </label>
+                                        </div>
+                                    <?php elseif ($canAttempt): ?>
                                         <a href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>"
                                            class="btn btn-sm btn-primary">
-                                            Attempt
+                                            Start Test
                                         </a>
+                                    <?php else: ?>
+                                        <button class="btn btn-sm btn-outline-secondary" disabled><?php echo $statusLabel === 'Upcoming' ? 'Purchased - starts later' : 'Not available'; ?></button>
                                     <?php endif; ?>
-                                <?php else: ?>
-                                    <button class="btn btn-sm btn-outline-secondary" disabled>Not available</button>
                                 <?php endif; ?>
                             <?php else: ?>
                                 <span class="text-muted small">Login as a student to attempt.</span>
@@ -173,6 +225,153 @@ if ($authUser && $authUser['role'] === 'student') {
             </div>
         <?php endforeach; ?>
     </div>
+
+    <div class="eq-page-head text-start mt-5">
+        <h3>Practice Papers</h3>
+        <p class="subtitle">Download free or purchased PDFs for revision and preparation.</p>
+    </div>
+    <div class="row g-3">
+        <?php foreach ($practicePapers as $paper): ?>
+            <?php
+                $paperPrice = (float)($paper['amount_inr'] ?? 0);
+                $isPaidPaper = (string)($paper['access_type'] ?? 'free') === 'paid' && $paperPrice > 0;
+                $hasPaperAccess = !$isPaidPaper || !empty($paidPracticePapers[(int)$paper['id']]);
+            ?>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
+                            <h5 class="card-title mb-0"><?php echo htmlspecialchars($paper['name']); ?></h5>
+                            <span class="badge <?php echo $isPaidPaper ? 'text-bg-warning text-dark' : 'text-bg-success'; ?>"><?php echo $isPaidPaper ? htmlspecialchars(test_price_label($paperPrice)) : 'Free'; ?></span>
+                        </div>
+                        <p class="small text-muted mb-2">Mapped Test: <?php echo htmlspecialchars($paper['test_title']); ?></p>
+                        <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$paper['description']), 140, '...')); ?></p>
+                        <p class="small mb-3">Class: <?php echo htmlspecialchars($paper['class_name']); ?> | Year: <?php echo htmlspecialchars($paper['paper_year']); ?></p>
+                        <?php if ($authUser && $authUser['role'] === 'student'): ?>
+                            <?php if ($hasPaperAccess): ?>
+                                <a class="btn btn-sm btn-primary" href="<?php echo htmlspecialchars(url_for('practice_paper_download.php?id=' . (int)$paper['id'])); ?>">Download PDF</a>
+                            <?php else: ?>
+                                <div class="form-check">
+                                    <input class="form-check-input bulk-purchase-item" type="checkbox" value="practice_paper:<?php echo (int)$paper['id']; ?>" id="buy-paper-<?php echo (int)$paper['id']; ?>" data-title="<?php echo htmlspecialchars($paper['name']); ?>" data-amount="<?php echo (int)amount_in_paise($paperPrice); ?>">
+                                    <label class="form-check-label small" for="buy-paper-<?php echo (int)$paper['id']; ?>">
+                                        Buy for <?php echo htmlspecialchars(test_price_label($paperPrice)); ?>
+                                    </label>
+                                </div>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <span class="text-muted small">Login as a student to download.</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+        <?php if (!$practicePapers): ?>
+            <div class="col-12"><div class="alert alert-light border">No practice papers are published yet.</div></div>
+        <?php endif; ?>
+    </div>
+
+    <?php if ($authUser && $authUser['role'] === 'student'): ?>
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <script>
+        (function () {
+            const button = document.getElementById('bulk-buy-button');
+            const csrfToken = document.getElementById('payment-csrf-token') ? document.getElementById('payment-csrf-token').value : '';
+            const message = document.getElementById('payment-message');
+            if (!button || !message) return;
+
+            function showMessage(type, text) {
+                message.className = 'alert alert-' + type;
+                message.textContent = text;
+            }
+
+            async function postJson(url, payload) {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json().catch(function () { return {}; });
+                if (!response.ok || data.success === false) {
+                    throw new Error(data.error || 'Payment request failed.');
+                }
+                return data;
+            }
+
+            button.addEventListener('click', async function () {
+                const selected = Array.from(document.querySelectorAll('.bulk-purchase-item:checked')).map(function (input) {
+                    const parts = input.value.split(':');
+                    return {type: parts[0], id: Number(parts[1])};
+                });
+                if (!selected.length) {
+                    showMessage('warning', 'Select at least one paid item to buy.');
+                    return;
+                }
+
+                button.disabled = true;
+                showMessage('info', 'Preparing secure bulk checkout...');
+                let order;
+                try {
+                    order = await postJson(<?php echo json_encode(url_for('api/create-order.php')); ?>, {
+                        amount: 0,
+                        currency: <?php echo json_encode(payment_gateway_currency()); ?>,
+                        receipt: 'bulk-purchase',
+                        items: selected
+                    });
+                } catch (error) {
+                    showMessage('danger', error.message);
+                    button.disabled = false;
+                    return;
+                }
+
+                if (order.already_paid && order.redirect_url) {
+                    window.location.href = order.redirect_url;
+                    return;
+                }
+
+                const rzp = new Razorpay({
+                    key: order.key_id,
+                    amount: order.amount,
+                    currency: order.currency,
+                    name: 'EduquestIQ',
+                    description: 'EduquestIQ bulk purchase',
+                    order_id: order.order_id,
+                    prefill: {
+                        name: <?php echo json_encode((string)$authUser['name']); ?>,
+                        email: <?php echo json_encode((string)$authUser['email']); ?>
+                    },
+                    handler: async function (response) {
+                        try {
+                            const verify = await postJson(<?php echo json_encode(url_for('api/verify-payment.php')); ?>, {
+                                razorpay_order_id: response.razorpay_order_id || '',
+                                razorpay_payment_id: response.razorpay_payment_id || '',
+                                razorpay_signature: response.razorpay_signature || ''
+                            });
+                            showMessage('success', 'Payment verified. Refreshing your catalogue...');
+                            window.location.href = verify.redirect_url || <?php echo json_encode(url_for('tests.php?purchase=success')); ?>;
+                        } catch (error) {
+                            showMessage('danger', error.message);
+                            button.disabled = false;
+                        }
+                    },
+                    theme: {color: '#4374ff'},
+                    modal: {
+                        ondismiss: function () {
+                            showMessage('warning', 'Payment was cancelled. You can try again when ready.');
+                            button.disabled = false;
+                        }
+                    }
+                });
+                rzp.on('payment.failed', function (response) {
+                    const reason = response && response.error && response.error.description ? response.error.description : 'Payment failed. Please try again.';
+                    showMessage('danger', reason);
+                    button.disabled = false;
+                });
+                rzp.open();
+            });
+        })();
+        </script>
+    <?php endif; ?>
 <?php endif; ?>
 
 <?php

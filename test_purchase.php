@@ -29,12 +29,12 @@ if (!$test) {
 
 $priceInr = max(0.0, (float)($test['price_inr'] ?? 0));
 if ($priceInr <= 0) {
-    header('Location: ' . url_for('test_attempt.php?id=' . $testId));
+    header('Location: ' . url_for('tests.php'));
     exit;
 }
 
 if (test_purchase_is_paid($pdo, $testId, (int)$user['sub'])) {
-    header('Location: ' . url_for('test_attempt.php?id=' . $testId));
+    header('Location: ' . url_for('tests.php?purchase=ready'));
     exit;
 }
 
@@ -215,8 +215,8 @@ if (!payment_gateway_ready()) {
                             razorpay_payment_id: response.razorpay_payment_id || '',
                             razorpay_signature: response.razorpay_signature || ''
                         });
-                        showMessage('success', 'Payment verified. Opening your test...');
-                        window.location.href = verify.redirect_url || <?php echo json_encode(url_for('test_attempt.php?id=' . $testId . '&paid=1')); ?>;
+                        showMessage('success', 'Payment verified. Returning to tests...');
+                        window.location.href = verify.redirect_url || <?php echo json_encode(url_for('tests.php?purchase=success')); ?>;
                     } catch (error) {
                         showMessage('danger', error.message);
                         payButton.disabled = false;
@@ -255,7 +255,7 @@ if (!payment_gateway_ready()) {
                         });
 
                         if (reconcile.success && reconcile.redirect_url) {
-                            showMessage('success', 'Payment captured. Opening your test...');
+                            showMessage('success', 'Payment captured. Returning to tests...');
                             window.location.href = reconcile.redirect_url;
                             return;
                         }

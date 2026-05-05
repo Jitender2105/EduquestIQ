@@ -62,14 +62,19 @@ try {
         razorpay_webhook_response(200, ['success' => true, 'ignored' => true, 'reason' => 'No Razorpay order id in event.']);
     }
 
-    $purchase = test_purchase_find_by_order($pdo, $orderId);
-    if (!$purchase) {
+    $testPurchases = test_purchase_rows_by_order($pdo, $orderId);
+    $paperPurchases = practice_paper_purchase_rows_by_order($pdo, $orderId);
+    if (!$testPurchases && !$paperPurchases) {
         razorpay_webhook_response(200, ['success' => true, 'ignored' => true, 'reason' => 'Order not tracked by EduquestIQ.']);
     }
 
-    $testId = (int)$purchase['test_id'];
-    $studentId = (int)$purchase['student_id'];
-    $expectedAmountPaise = amount_in_paise((float)($purchase['amount_inr'] ?? 0));
+    $expectedAmountPaise = 0;
+    foreach ($testPurchases as $purchase) {
+        $expectedAmountPaise += amount_in_paise((float)($purchase['amount_inr'] ?? 0));
+    }
+    foreach ($paperPurchases as $purchase) {
+        $expectedAmountPaise += amount_in_paise((float)($purchase['amount_inr'] ?? 0));
+    }
 
     if ($amountPaise > 0 && $expectedAmountPaise > 0 && $amountPaise !== $expectedAmountPaise) {
         razorpay_webhook_response(400, ['success' => false, 'error' => 'Webhook amount mismatch.']);
@@ -87,25 +92,48 @@ try {
             $paymentId = (string)$order['payments'];
         }
 
-        test_purchase_mark_paid(
-            $pdo,
-            $testId,
-            $studentId,
-            $orderId,
-            $paymentId,
-            'razorpay-webhook:' . $eventType,
-            (float)($purchase['amount_inr'] ?? inr_from_paise($amountPaise))
-        );
+        foreach ($testPurchases as $purchase) {
+            test_purchase_mark_paid(
+                $pdo,
+                (int)$purchase['test_id'],
+                (int)$purchase['student_id'],
+                $orderId,
+                $paymentId,
+                'razorpay-webhook:' . $eventType,
+                (float)($purchase['amount_inr'] ?? 0)
+            );
+        }
+
+        foreach ($paperPurchases as $purchase) {
+            practice_paper_purchase_mark_paid(
+                $pdo,
+                (int)$purchase['practice_paper_id'],
+                (int)$purchase['student_id'],
+                $orderId,
+                $paymentId,
+                'razorpay-webhook:' . $eventType,
+                (float)($purchase['amount_inr'] ?? 0)
+            );
+        }
 
         razorpay_webhook_response(200, ['success' => true, 'status' => 'paid']);
     }
 
     if (in_array($eventType, ['payment.failed', 'order.payment_failed'], true)) {
-        test_purchase_mark_failed($pdo, $testId, $studentId, $orderId, $paymentId !== '' ? $paymentId : null, [
-            'event' => $eventType,
-            'payment_status' => $paymentStatus,
-            'payment_error' => is_array($payment) ? ($payment['error_description'] ?? null) : null,
-        ]);
+        foreach ($testPurchases as $purchase) {
+            test_purchase_mark_failed($pdo, (int)$purchase['test_id'], (int)$purchase['student_id'], $orderId, $paymentId !== '' ? $paymentId : null, [
+                'event' => $eventType,
+                'payment_status' => $paymentStatus,
+                'payment_error' => is_array($payment) ? ($payment['error_description'] ?? null) : null,
+            ]);
+        }
+        foreach ($paperPurchases as $purchase) {
+            practice_paper_purchase_mark_failed($pdo, (int)$purchase['practice_paper_id'], (int)$purchase['student_id'], $orderId, $paymentId !== '' ? $paymentId : null, [
+                'event' => $eventType,
+                'payment_status' => $paymentStatus,
+                'payment_error' => is_array($payment) ? ($payment['error_description'] ?? null) : null,
+            ]);
+        }
 
         razorpay_webhook_response(200, ['success' => true, 'status' => 'failed']);
     }

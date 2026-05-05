@@ -129,6 +129,22 @@ function test_purchase_find_by_order(PDO $pdo, string $orderId): ?array
     return $row ?: null;
 }
 
+function test_purchase_rows_by_order(PDO $pdo, string $orderId): array
+{
+    if (!test_purchase_table_exists($pdo)) {
+        return [];
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT *
+         FROM test_purchases
+         WHERE gateway_order_id = ?
+         ORDER BY id ASC'
+    );
+    $stmt->execute([$orderId]);
+    return $stmt->fetchAll();
+}
+
 function test_purchase_upsert_pending(PDO $pdo, int $testId, int $studentId, float $amountInr, string $orderId, array $notes = []): int
 {
     if (!test_purchase_table_exists($pdo)) {
@@ -213,6 +229,168 @@ function test_purchase_mark_failed(PDO $pdo, int $testId, int $studentId, string
          WHERE test_id = ? AND student_id = ? AND gateway_order_id = ?"
     );
     $stmt->execute([$paymentId, $notesJson, $testId, $studentId, $orderId]);
+}
+
+function practice_paper_table_exists(PDO $pdo): bool
+{
+    $stmt = $pdo->prepare(
+        "SELECT 1
+         FROM information_schema.tables
+         WHERE table_schema = DATABASE()
+           AND table_name = 'practice_papers'
+         LIMIT 1"
+    );
+    $stmt->execute();
+    return (bool)$stmt->fetchColumn();
+}
+
+function practice_paper_purchase_table_exists(PDO $pdo): bool
+{
+    $stmt = $pdo->prepare(
+        "SELECT 1
+         FROM information_schema.tables
+         WHERE table_schema = DATABASE()
+           AND table_name = 'practice_paper_purchases'
+         LIMIT 1"
+    );
+    $stmt->execute();
+    return (bool)$stmt->fetchColumn();
+}
+
+function practice_paper_purchase_is_paid(PDO $pdo, int $paperId, int $studentId): bool
+{
+    if (!practice_paper_purchase_table_exists($pdo)) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT id
+         FROM practice_paper_purchases
+         WHERE practice_paper_id = ? AND student_id = ? AND payment_status = 'paid'
+         LIMIT 1"
+    );
+    $stmt->execute([$paperId, $studentId]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function practice_paper_purchase_row(PDO $pdo, int $paperId, int $studentId): ?array
+{
+    if (!practice_paper_purchase_table_exists($pdo)) {
+        return null;
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT *
+         FROM practice_paper_purchases
+         WHERE practice_paper_id = ? AND student_id = ?
+         ORDER BY id DESC
+         LIMIT 1'
+    );
+    $stmt->execute([$paperId, $studentId]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+function practice_paper_purchase_rows_by_order(PDO $pdo, string $orderId): array
+{
+    if (!practice_paper_purchase_table_exists($pdo)) {
+        return [];
+    }
+
+    $stmt = $pdo->prepare(
+        'SELECT *
+         FROM practice_paper_purchases
+         WHERE gateway_order_id = ?
+         ORDER BY id ASC'
+    );
+    $stmt->execute([$orderId]);
+    return $stmt->fetchAll();
+}
+
+function practice_paper_purchase_upsert_pending(PDO $pdo, int $paperId, int $studentId, float $amountInr, string $orderId, array $notes = []): int
+{
+    if (!practice_paper_purchase_table_exists($pdo)) {
+        throw new RuntimeException('Practice paper purchase tracking table is missing.');
+    }
+
+    $existing = practice_paper_purchase_row($pdo, $paperId, $studentId);
+    $notesJson = $notes ? json_encode($notes, JSON_UNESCAPED_UNICODE) : null;
+
+    if ($existing) {
+        $stmt = $pdo->prepare(
+            "UPDATE practice_paper_purchases
+             SET gateway = 'razorpay',
+                 gateway_order_id = ?,
+                 gateway_payment_id = NULL,
+                 gateway_signature = NULL,
+                 amount_inr = ?,
+                 currency = ?,
+                 payment_status = 'pending',
+                 notes_json = ?,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?"
+        );
+        $stmt->execute([$orderId, $amountInr, payment_gateway_currency(), $notesJson, (int)$existing['id']]);
+        return (int)$existing['id'];
+    }
+
+    $stmt = $pdo->prepare(
+        "INSERT INTO practice_paper_purchases
+         (practice_paper_id, student_id, gateway, gateway_order_id, amount_inr, currency, payment_status, notes_json, created_at, updated_at)
+         VALUES (?, ?, 'razorpay', ?, ?, ?, 'pending', ?, NOW(), NOW())"
+    );
+    $stmt->execute([$paperId, $studentId, $orderId, $amountInr, payment_gateway_currency(), $notesJson]);
+    return (int)$pdo->lastInsertId();
+}
+
+function practice_paper_purchase_mark_paid(PDO $pdo, int $paperId, int $studentId, string $orderId, string $paymentId, string $signature, float $amountInr): void
+{
+    if (!practice_paper_purchase_table_exists($pdo)) {
+        throw new RuntimeException('Practice paper purchase tracking table is missing.');
+    }
+
+    $stmt = $pdo->prepare(
+        "INSERT INTO practice_paper_purchases
+         (practice_paper_id, student_id, gateway, gateway_order_id, gateway_payment_id, gateway_signature, amount_inr, currency, payment_status, paid_at, created_at, updated_at)
+         VALUES (?, ?, 'razorpay', ?, ?, ?, ?, ?, 'paid', NOW(), NOW(), NOW())
+         ON DUPLICATE KEY UPDATE
+             gateway = VALUES(gateway),
+             gateway_order_id = VALUES(gateway_order_id),
+             gateway_payment_id = VALUES(gateway_payment_id),
+             gateway_signature = VALUES(gateway_signature),
+             amount_inr = VALUES(amount_inr),
+             currency = VALUES(currency),
+             payment_status = VALUES(payment_status),
+             paid_at = VALUES(paid_at),
+             updated_at = VALUES(updated_at)"
+    );
+    $stmt->execute([
+        $paperId,
+        $studentId,
+        $orderId,
+        $paymentId,
+        $signature,
+        $amountInr,
+        payment_gateway_currency(),
+    ]);
+}
+
+function practice_paper_purchase_mark_failed(PDO $pdo, int $paperId, int $studentId, string $orderId, ?string $paymentId, array $details = []): void
+{
+    if (!practice_paper_purchase_table_exists($pdo)) {
+        throw new RuntimeException('Practice paper purchase tracking table is missing.');
+    }
+
+    $notesJson = $details ? json_encode($details, JSON_UNESCAPED_UNICODE) : null;
+    $stmt = $pdo->prepare(
+        "UPDATE practice_paper_purchases
+         SET gateway_payment_id = ?,
+             payment_status = 'failed',
+             notes_json = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE practice_paper_id = ? AND student_id = ? AND gateway_order_id = ?"
+    );
+    $stmt->execute([$paymentId, $notesJson, $paperId, $studentId, $orderId]);
 }
 
 function razorpay_signature_is_valid(string $orderId, string $paymentId, string $signature): bool

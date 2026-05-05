@@ -75,6 +75,8 @@ function backend_schema_ready(PDO $pdo): array
         'content_metadata',
         'articles',
         'article_faqs',
+        'practice_papers',
+        'practice_paper_purchases',
     ];
 
     $missing = [];

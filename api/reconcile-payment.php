@@ -56,7 +56,7 @@ try {
         api_reconcile_json_response(200, [
             'success' => true,
             'recovered' => false,
-            'redirect_url' => url_for('test_attempt.php?id=' . $testId . '&paid=1'),
+            'redirect_url' => url_for('tests.php?purchase=ready'),
         ]);
     }
 
@@ -86,7 +86,7 @@ try {
         api_reconcile_json_response(200, [
             'success' => true,
             'recovered' => true,
-            'redirect_url' => url_for('test_attempt.php?id=' . $testId . '&paid=1'),
+            'redirect_url' => url_for('tests.php?purchase=success'),
         ]);
     }
 
