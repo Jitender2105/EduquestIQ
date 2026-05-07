@@ -7,10 +7,12 @@ require_once dirname(__DIR__) . '/includes_payments.php';
 
 $user = backend_user();
 $pdo = get_pdo();
+ensure_practice_paper_tables($pdo);
 
 $errors = [];
 $success = null;
 $practicePaperActiveColumn = table_has_column($pdo, 'practice_papers', 'is_active');
+$gradeOptions = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
@@ -148,7 +150,12 @@ require_once dirname(__DIR__) . '/includes_header.php';
             <div class="row g-2 mb-3">
                 <div class="col-md-6">
                     <label class="form-label">Class</label>
-                    <input class="form-control" name="class_name" placeholder="Class 8" required>
+                    <select class="form-select" name="class_name" required>
+                        <option value="">Select class</option>
+                        <?php foreach ($gradeOptions as $gradeOption): ?>
+                            <option value="<?php echo htmlspecialchars($gradeOption); ?>"><?php echo htmlspecialchars($gradeOption); ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Year</label>
