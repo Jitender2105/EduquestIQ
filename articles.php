@@ -126,6 +126,16 @@ endif;
         transform: translateY(-4px);
         box-shadow: 0 20px 40px rgba(37, 49, 104, 0.12);
     }
+    .eq-article-card-link {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        height: 100%;
+    }
+    .eq-article-card-link:hover,
+    .eq-article-card-link:focus {
+        color: inherit;
+    }
     .eq-article-card img {
         width: 100%;
         height: 214px;
@@ -267,33 +277,34 @@ endif;
             <div class="row g-3">
                 <?php foreach (array_slice($articles, 0, 6) as $article): ?>
                     <div class="col-md-6 col-xl-4">
-                        <article class="eq-article-card h-100">
-                            <?php if (!empty($article['image_path'])): ?>
-                                <img src="<?php echo htmlspecialchars(url_for((string)$article['image_path'])); ?>" alt="">
-                            <?php else: ?>
-                                <div class="bg-light d-flex align-items-center justify-content-center" style="height:190px;">
-                                    <span class="text-muted">EduquestIQ</span>
+                        <a class="eq-article-card-link" href="<?php echo htmlspecialchars(url_for('articles/' . (string)$article['slug'])); ?>">
+                            <article class="eq-article-card h-100">
+                                <?php if (!empty($article['image_path'])): ?>
+                                    <img src="<?php echo htmlspecialchars(url_for((string)$article['image_path'])); ?>" alt="">
+                                <?php else: ?>
+                                    <div class="bg-light d-flex align-items-center justify-content-center" style="height:190px;">
+                                        <span class="text-muted">EduquestIQ</span>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="card-body">
+                                    <div class="eq-article-meta-row">
+                                        <span class="eq-article-chip text-capitalize"><?php echo htmlspecialchars((string)$article['article_type']); ?></span>
+                                        <span class="small text-muted"><?php echo htmlspecialchars(article_format_date((string)$article['created_at'])); ?></span>
+                                    </div>
+                                    <h5 class="mb-0"><?php echo htmlspecialchars((string)$article['title']); ?></h5>
+                                    <p class="text-muted mb-0"><?php echo htmlspecialchars(article_excerpt((string)$article['content_html'], 150)); ?></p>
+                                    <div class="small text-muted">
+                                        By <?php echo htmlspecialchars((string)$article['creator_name']); ?>
+                                        <?php if (!empty($article['school_name'])): ?>
+                                            · <?php echo htmlspecialchars((string)$article['school_name']); ?>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="mt-auto d-flex justify-content-between align-items-center">
+                                        <span class="btn btn-outline-primary btn-sm">Read more</span>
+                                    </div>
                                 </div>
-                            <?php endif; ?>
-                            <div class="card-body">
-                                <div class="eq-article-meta-row">
-                                    <span class="eq-article-chip text-capitalize"><?php echo htmlspecialchars((string)$article['article_type']); ?></span>
-                                    <span class="small text-muted"><?php echo htmlspecialchars(article_format_date((string)$article['created_at'])); ?></span>
-                                </div>
-                                <h5 class="mb-0"><?php echo htmlspecialchars((string)$article['title']); ?></h5>
-                                <p class="text-muted mb-0"><?php echo htmlspecialchars(article_excerpt((string)$article['content_html'], 150)); ?></p>
-                                <div class="small text-muted">
-                                    By <?php echo htmlspecialchars((string)$article['creator_name']); ?>
-                                    <?php if (!empty($article['school_name'])): ?>
-                                        · <?php echo htmlspecialchars((string)$article['school_name']); ?>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="mt-auto d-flex justify-content-between align-items-center">
-                                    <a href="<?php echo htmlspecialchars(url_for('articles/' . (string)$article['slug'])); ?>" class="btn btn-outline-primary btn-sm">Read more</a>
-                                  
-                                </div>
-                            </div>
-                        </article>
+                            </article>
+                        </a>
                     </div>
                 <?php endforeach; ?>
             </div>
