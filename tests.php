@@ -96,7 +96,192 @@ if ($authUser && $authUser['role'] === 'student') {
         }
     }
 }
+
+$paidTestsList = [];
+$freeTestsList = [];
+foreach ($tests as $test) {
+    $testPrice = (float)($test['price_inr'] ?? 0);
+    if ($testPrice > 0) {
+        $paidTestsList[] = $test;
+    } else {
+        $freeTestsList[] = $test;
+    }
+}
+
+$paidPracticePaperList = [];
+$freePracticePaperList = [];
+foreach ($practicePapers as $paper) {
+    $paperPrice = (float)($paper['amount_inr'] ?? 0);
+    $isPaidPaper = (string)($paper['access_type'] ?? 'free') === 'paid' && $paperPrice > 0;
+    if ($isPaidPaper) {
+        $paidPracticePaperList[] = $paper;
+    } else {
+        $freePracticePaperList[] = $paper;
+    }
+}
 ?>
+
+<style>
+.eq-catalog-intro {
+    background: linear-gradient(135deg, rgba(67, 116, 255, 0.08), rgba(168, 85, 247, 0.12));
+    border: 1px solid rgba(67, 116, 255, 0.14);
+    border-radius: 28px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.eq-catalog-intro-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.eq-catalog-card {
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 22px;
+    padding: 1.25rem;
+    box-shadow: 0 18px 44px rgba(76, 91, 135, 0.08);
+}
+
+.eq-catalog-card h4 {
+    font-size: 1.05rem;
+    margin-bottom: 0.55rem;
+}
+
+.eq-catalog-card p {
+    color: #5e6785;
+    font-size: 0.95rem;
+    margin-bottom: 0;
+}
+
+.eq-catalog-list {
+    margin: 0.9rem 0 0;
+    padding-left: 1rem;
+    color: #3f4866;
+}
+
+.eq-catalog-list li + li {
+    margin-top: 0.4rem;
+}
+
+.eq-cart-bar {
+    position: sticky;
+    top: 1rem;
+    z-index: 5;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: #fff;
+    border-radius: 24px;
+    padding: 1.1rem 1.2rem;
+    box-shadow: 0 22px 52px rgba(15, 23, 42, 0.24);
+}
+
+.eq-cart-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.5rem;
+    margin: 0.8rem 0;
+}
+
+.eq-cart-stat strong {
+    display: block;
+    font-size: 1.2rem;
+    line-height: 1.1;
+}
+
+.eq-cart-stat span {
+    display: block;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.82rem;
+}
+
+.eq-selected-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+}
+
+.eq-selected-pill {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.75rem;
+}
+
+.eq-purchase-choice {
+    display: block;
+    width: 100%;
+    border: 2px solid rgba(245, 158, 11, 0.35);
+    border-radius: 16px;
+    padding: 0.8rem 0.95rem;
+    background: linear-gradient(135deg, rgba(255, 247, 237, 0.92), rgba(255, 255, 255, 0.96));
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    cursor: pointer;
+}
+
+.eq-purchase-choice:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 34px rgba(245, 158, 11, 0.14);
+}
+
+.eq-purchase-choice.is-selected {
+    border-color: #f59e0b;
+    box-shadow: 0 18px 38px rgba(245, 158, 11, 0.18);
+}
+
+.eq-purchase-choice input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.eq-purchase-choice-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.eq-purchase-choice-title {
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.eq-purchase-choice-amount {
+    color: #b45309;
+    font-weight: 700;
+}
+
+.eq-purchase-choice-text {
+    color: #6b7280;
+    font-size: 0.88rem;
+    margin-top: 0.35rem;
+}
+
+.eq-section-card {
+    background: #fff;
+    border-radius: 24px;
+    padding: 1.25rem;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.06);
+}
+
+.eq-empty-state {
+    border: 1px dashed rgba(148, 163, 184, 0.8);
+    border-radius: 18px;
+    padding: 1.2rem;
+    color: #64748b;
+    background: #f8fafc;
+}
+
+@media (max-width: 767.98px) {
+    .eq-cart-bar {
+        position: static;
+    }
+}
+</style>
 
 <div class="eq-page-head">
     <h2>Tests</h2>
@@ -157,23 +342,59 @@ if ($authUser && $authUser['role'] === 'student') {
     <?php if ($authUser && $authUser['role'] === 'student'): ?>
         <input type="hidden" id="payment-csrf-token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
         <div id="payment-message" class="alert d-none" role="alert"></div>
-        <div class="card p-3 mb-4">
+        <div class="eq-catalog-intro">
+            <div class="eq-catalog-intro-grid">
+                <div class="eq-catalog-card">
+                    <h4>How tests help</h4>
+                    <p>Live tests build exam discipline and measure your attribute-level readiness before the real attempt window opens.</p>
+                    <ul class="eq-catalog-list">
+                        <li>See skill growth through SIRA-based reporting.</li>
+                        <li>Practice with timed conditions and clear instructions.</li>
+                        <li>Track purchase, attempt, and report access in one place.</li>
+                    </ul>
+                </div>
+                <div class="eq-catalog-card">
+                    <h4>How practice papers help</h4>
+                    <p>Practice papers give you focused revision material you can download, revisit, and use for self-paced prep.</p>
+                    <ul class="eq-catalog-list">
+                        <li>Reinforce concepts before taking the full test.</li>
+                        <li>Download PDFs after purchase or instantly when free.</li>
+                        <li>Prepare for class-specific and year-specific exam patterns.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="eq-cart-bar mb-4">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
-                    <h5 class="mb-1">Bulk Purchase</h5>
-                    <div class="text-muted small">Select multiple paid tests and practice papers, then pay once.</div>
+                    <h5 class="mb-1 text-white">Bulk Purchase Cart</h5>
+                    <div class="small text-white-50">Select multiple paid tests and practice papers, then pay once.</div>
                 </div>
-                <button type="button" class="btn btn-primary" id="bulk-buy-button">Buy Selected Items</button>
+                <button type="button" class="btn btn-warning fw-semibold" id="bulk-buy-button">Buy Selected Items</button>
+            </div>
+            <div class="eq-cart-meta">
+                <div class="eq-cart-stat">
+                    <strong id="selected-count">0</strong>
+                    <span>Selected items</span>
+                </div>
+                <div class="eq-cart-stat">
+                    <strong id="selected-total">Rs 0</strong>
+                    <span>Cart value</span>
+                </div>
+            </div>
+            <div class="eq-selected-items" id="selected-items">
+                <span class="eq-selected-pill">No paid items selected yet</span>
             </div>
         </div>
     <?php endif; ?>
 
     <div class="eq-page-head text-start">
-        <h3>Tests</h3>
-        <p class="subtitle">You can buy upcoming tests before the start date. Starting is enabled only during the test window.</p>
+        <h3>Paid Tests</h3>
+        <p class="subtitle">Buy upcoming tests in advance. Once purchased, you can start them only during the live test window.</p>
     </div>
     <div class="row g-3">
-        <?php foreach ($tests as $test): ?>
+        <?php foreach ($paidTestsList as $test): ?>
             <?php
                 $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
                 $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
@@ -194,11 +415,14 @@ if ($authUser && $authUser['role'] === 'student') {
                 $hasPaidTest = !$isPaidTest || !empty($paidTests[(int)$test['id']]);
             ?>
             <div class="col-md-4">
-                <div class="card h-100">
+                <div class="card h-100 border-0 shadow-sm">
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
                             <h5 class="card-title mb-0"><?php echo htmlspecialchars($test['title']); ?></h5>
-                            <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
+                            <div class="d-flex flex-column align-items-end gap-2">
+                                <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
+                                <span class="badge text-bg-warning text-dark"><?php echo htmlspecialchars(test_price_label($testPrice)); ?></span>
+                            </div>
                         </div>
                         <p class="card-text small text-muted flex-grow-1">
                             <?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 140, '...')); ?>
@@ -221,12 +445,14 @@ if ($authUser && $authUser['role'] === 'student') {
                                     </a>
                                 <?php else: ?>
                                     <?php if (!$hasPaidTest): ?>
-                                        <div class="form-check">
-                                            <input class="form-check-input bulk-purchase-item" type="checkbox" value="test:<?php echo (int)$test['id']; ?>" id="buy-test-<?php echo (int)$test['id']; ?>" data-title="<?php echo htmlspecialchars($test['title']); ?>" data-amount="<?php echo (int)amount_in_paise($testPrice); ?>">
-                                            <label class="form-check-label small" for="buy-test-<?php echo (int)$test['id']; ?>">
-                                                Buy for <?php echo htmlspecialchars(test_price_label($testPrice)); ?>
-                                            </label>
-                                        </div>
+                                        <label class="eq-purchase-choice" for="buy-test-<?php echo (int)$test['id']; ?>">
+                                            <input class="bulk-purchase-item" type="checkbox" value="test:<?php echo (int)$test['id']; ?>" id="buy-test-<?php echo (int)$test['id']; ?>" data-title="<?php echo htmlspecialchars($test['title']); ?>" data-amount="<?php echo (int)amount_in_paise($testPrice); ?>">
+                                            <span class="eq-purchase-choice-head">
+                                                <span class="eq-purchase-choice-title">Add test to cart</span>
+                                                <span class="eq-purchase-choice-amount"><?php echo htmlspecialchars(test_price_label($testPrice)); ?></span>
+                                            </span>
+                                            <span class="eq-purchase-choice-text">Select this paid test to include it in your current checkout.</span>
+                                        </label>
                                     <?php elseif ($canAttempt): ?>
                                         <a href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>"
                                            class="btn btn-sm btn-primary">
@@ -244,25 +470,92 @@ if ($authUser && $authUser['role'] === 'student') {
                 </div>
             </div>
         <?php endforeach; ?>
+        <?php if (!$paidTestsList): ?>
+            <div class="col-12"><div class="eq-empty-state">No paid tests are available right now.</div></div>
+        <?php endif; ?>
     </div>
 
     <div class="eq-page-head text-start mt-5">
-        <h3>Practice Papers</h3>
-        <p class="subtitle">Download free or purchased PDFs for revision and preparation.</p>
+        <h3>Free Tests</h3>
+        <p class="subtitle">These tests are available without payment and can be started during their live window.</p>
     </div>
     <div class="row g-3">
-        <?php foreach ($practicePapers as $paper): ?>
+        <?php foreach ($freeTestsList as $test): ?>
             <?php
-                $paperPrice = (float)($paper['amount_inr'] ?? 0);
-                $isPaidPaper = (string)($paper['access_type'] ?? 'free') === 'paid' && $paperPrice > 0;
-                $hasPaperAccess = !$isPaidPaper || !empty($paidPracticePapers[(int)$paper['id']]);
+                $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
+                $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
+                $statusLabel = 'Open';
+                $statusClass = 'text-bg-success';
+                $canAttempt = true;
+                if ($startAt && $nowUtc < $startAt) {
+                    $statusLabel = 'Upcoming';
+                    $statusClass = 'text-bg-warning';
+                    $canAttempt = false;
+                } elseif ($endAt && $nowUtc > $endAt) {
+                    $statusLabel = 'Closed';
+                    $statusClass = 'text-bg-secondary';
+                    $canAttempt = false;
+                }
             ?>
             <div class="col-md-4">
-                <div class="card h-100">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
+                            <h5 class="card-title mb-0"><?php echo htmlspecialchars($test['title']); ?></h5>
+                            <div class="d-flex flex-column align-items-end gap-2">
+                                <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
+                                <span class="badge text-bg-success">Free</span>
+                            </div>
+                        </div>
+                        <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 140, '...')); ?></p>
+                        <p class="small mb-2">
+                            <?php if ($test['teacher_name']): ?>
+                                Teacher: <?php echo htmlspecialchars($test['teacher_name']); ?><br>
+                            <?php endif; ?>
+                            Marks: <?php echo (int)$test['total_marks']; ?> |
+                            Duration: <?php echo (int)$test['duration_minutes']; ?> min<br>
+                            Start: <?php echo $startAt ? htmlspecialchars($startAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?><br>
+                            End: <?php echo $endAt ? htmlspecialchars($endAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?>
+                        </p>
+                        <?php if ($authUser && $authUser['role'] === 'student'): ?>
+                            <?php if (isset($attempted[(int)$test['id']])): ?>
+                                <a href="<?php echo htmlspecialchars(url_for('sira_report.php?attempt_id=' . (int)$attemptIds[(int)$test['id']])); ?>"
+                                   class="btn btn-sm btn-outline-primary">
+                                    View SIRA Report
+                                </a>
+                            <?php elseif ($canAttempt): ?>
+                                <a class="btn btn-sm btn-success" href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>">Start Free Test</a>
+                            <?php else: ?>
+                                <button class="btn btn-sm btn-outline-secondary" disabled><?php echo $statusLabel === 'Upcoming' ? 'Free test opens later' : 'Not available'; ?></button>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <span class="text-muted small">Login as a student to attempt.</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+        <?php if (!$freeTestsList): ?>
+            <div class="col-12"><div class="eq-empty-state">No free tests are published yet.</div></div>
+        <?php endif; ?>
+    </div>
+
+    <div class="eq-page-head text-start mt-5">
+        <h3>Paid Practice Papers</h3>
+        <p class="subtitle">Purchase downloadable preparation PDFs in advance and keep them accessible from this catalogue.</p>
+    </div>
+    <div class="row g-3">
+        <?php foreach ($paidPracticePaperList as $paper): ?>
+            <?php
+                $paperPrice = (float)($paper['amount_inr'] ?? 0);
+                $hasPaperAccess = !empty($paidPracticePapers[(int)$paper['id']]);
+            ?>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
                             <h5 class="card-title mb-0"><?php echo htmlspecialchars($paper['name']); ?></h5>
-                            <span class="badge <?php echo $isPaidPaper ? 'text-bg-warning text-dark' : 'text-bg-success'; ?>"><?php echo $isPaidPaper ? htmlspecialchars(test_price_label($paperPrice)) : 'Free'; ?></span>
+                            <span class="badge text-bg-warning text-dark"><?php echo htmlspecialchars(test_price_label($paperPrice)); ?></span>
                         </div>
                         <p class="small text-muted mb-2">Mapped Test: <?php echo htmlspecialchars($paper['test_title']); ?></p>
                         <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$paper['description']), 140, '...')); ?></p>
@@ -271,12 +564,14 @@ if ($authUser && $authUser['role'] === 'student') {
                             <?php if ($hasPaperAccess): ?>
                                 <a class="btn btn-sm btn-primary" href="<?php echo htmlspecialchars(url_for('practice_paper_download.php?id=' . (int)$paper['id'])); ?>">Download PDF</a>
                             <?php else: ?>
-                                <div class="form-check">
-                                    <input class="form-check-input bulk-purchase-item" type="checkbox" value="practice_paper:<?php echo (int)$paper['id']; ?>" id="buy-paper-<?php echo (int)$paper['id']; ?>" data-title="<?php echo htmlspecialchars($paper['name']); ?>" data-amount="<?php echo (int)amount_in_paise($paperPrice); ?>">
-                                    <label class="form-check-label small" for="buy-paper-<?php echo (int)$paper['id']; ?>">
-                                        Buy for <?php echo htmlspecialchars(test_price_label($paperPrice)); ?>
-                                    </label>
-                                </div>
+                                <label class="eq-purchase-choice" for="buy-paper-<?php echo (int)$paper['id']; ?>">
+                                    <input class="bulk-purchase-item" type="checkbox" value="practice_paper:<?php echo (int)$paper['id']; ?>" id="buy-paper-<?php echo (int)$paper['id']; ?>" data-title="<?php echo htmlspecialchars($paper['name']); ?>" data-amount="<?php echo (int)amount_in_paise($paperPrice); ?>">
+                                    <span class="eq-purchase-choice-head">
+                                        <span class="eq-purchase-choice-title">Add paper to cart</span>
+                                        <span class="eq-purchase-choice-amount"><?php echo htmlspecialchars(test_price_label($paperPrice)); ?></span>
+                                    </span>
+                                    <span class="eq-purchase-choice-text">Select this paid practice paper to include it in your checkout.</span>
+                                </label>
                             <?php endif; ?>
                         <?php else: ?>
                             <span class="text-muted small">Login as a student to download.</span>
@@ -285,8 +580,38 @@ if ($authUser && $authUser['role'] === 'student') {
                 </div>
             </div>
         <?php endforeach; ?>
-        <?php if (!$practicePapers): ?>
-            <div class="col-12"><div class="alert alert-light border">No practice papers are published yet.</div></div>
+        <?php if (!$paidPracticePaperList): ?>
+            <div class="col-12"><div class="eq-empty-state">No paid practice papers are available right now.</div></div>
+        <?php endif; ?>
+    </div>
+
+    <div class="eq-page-head text-start mt-5">
+        <h3>Free Practice Papers</h3>
+        <p class="subtitle">Open revision resources that can be downloaded immediately without payment.</p>
+    </div>
+    <div class="row g-3">
+        <?php foreach ($freePracticePaperList as $paper): ?>
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
+                            <h5 class="card-title mb-0"><?php echo htmlspecialchars($paper['name']); ?></h5>
+                            <span class="badge text-bg-success">Free</span>
+                        </div>
+                        <p class="small text-muted mb-2">Mapped Test: <?php echo htmlspecialchars($paper['test_title']); ?></p>
+                        <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$paper['description']), 140, '...')); ?></p>
+                        <p class="small mb-3">Class: <?php echo htmlspecialchars($paper['class_name']); ?> | Year: <?php echo htmlspecialchars($paper['paper_year']); ?></p>
+                        <?php if ($authUser && $authUser['role'] === 'student'): ?>
+                            <a class="btn btn-sm btn-success" href="<?php echo htmlspecialchars(url_for('practice_paper_download.php?id=' . (int)$paper['id'])); ?>">Download Free Paper</a>
+                        <?php else: ?>
+                            <span class="text-muted small">Login as a student to download.</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+        <?php if (!$freePracticePaperList): ?>
+            <div class="col-12"><div class="eq-empty-state">No free practice papers are published yet.</div></div>
         <?php endif; ?>
     </div>
 
@@ -297,11 +622,54 @@ if ($authUser && $authUser['role'] === 'student') {
             const button = document.getElementById('bulk-buy-button');
             const csrfToken = document.getElementById('payment-csrf-token') ? document.getElementById('payment-csrf-token').value : '';
             const message = document.getElementById('payment-message');
+            const countNode = document.getElementById('selected-count');
+            const totalNode = document.getElementById('selected-total');
+            const itemsNode = document.getElementById('selected-items');
             if (!button || !message) return;
 
             function showMessage(type, text) {
                 message.className = 'alert alert-' + type;
                 message.textContent = text;
+            }
+
+            function formatInr(amountPaise) {
+                return 'Rs ' + (amountPaise / 100).toLocaleString('en-IN', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2
+                });
+            }
+
+            function syncSelectedStyles() {
+                document.querySelectorAll('.eq-purchase-choice').forEach(function (choice) {
+                    const input = choice.querySelector('.bulk-purchase-item');
+                    choice.classList.toggle('is-selected', !!(input && input.checked));
+                });
+            }
+
+            function updateCartSummary() {
+                if (!countNode || !totalNode || !itemsNode) return;
+                const selectedInputs = Array.from(document.querySelectorAll('.bulk-purchase-item:checked'));
+                const totalPaise = selectedInputs.reduce(function (sum, input) {
+                    return sum + Number(input.dataset.amount || 0);
+                }, 0);
+
+                countNode.textContent = String(selectedInputs.length);
+                totalNode.textContent = formatInr(totalPaise);
+                itemsNode.innerHTML = '';
+                if (!selectedInputs.length) {
+                    const pill = document.createElement('span');
+                    pill.className = 'eq-selected-pill';
+                    pill.textContent = 'No paid items selected yet';
+                    itemsNode.appendChild(pill);
+                    return;
+                }
+
+                selectedInputs.forEach(function (input) {
+                    const pill = document.createElement('span');
+                    pill.className = 'eq-selected-pill';
+                    pill.textContent = (input.dataset.title || 'Selected item') + ' · ' + formatInr(Number(input.dataset.amount || 0));
+                    itemsNode.appendChild(pill);
+                });
             }
 
             async function postJson(url, payload) {
@@ -317,6 +685,16 @@ if ($authUser && $authUser['role'] === 'student') {
                 }
                 return data;
             }
+
+            document.querySelectorAll('.bulk-purchase-item').forEach(function (input) {
+                input.addEventListener('change', function () {
+                    syncSelectedStyles();
+                    updateCartSummary();
+                });
+            });
+
+            syncSelectedStyles();
+            updateCartSummary();
 
             button.addEventListener('click', async function () {
                 const selected = Array.from(document.querySelectorAll('.bulk-purchase-item:checked')).map(function (input) {
