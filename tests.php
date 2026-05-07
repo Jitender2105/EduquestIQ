@@ -276,6 +276,50 @@ foreach ($practicePapers as $paper) {
     background: #f8fafc;
 }
 
+.eq-collapsible-card {
+    background: #fff;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 22px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+}
+
+.eq-collapsible-summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    background: linear-gradient(135deg, rgba(67, 116, 255, 0.06), rgba(168, 85, 247, 0.08));
+}
+
+.eq-collapsible-summary::-webkit-details-marker {
+    display: none;
+}
+
+.eq-collapsible-copy {
+    color: #64748b;
+    font-size: 0.92rem;
+    font-weight: 500;
+}
+
+.eq-collapsible-icon {
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+}
+
+details[open] .eq-collapsible-icon {
+    transform: rotate(180deg);
+}
+
+.eq-collapsible-body {
+    padding: 1.25rem;
+}
+
 @media (max-width: 767.98px) {
     .eq-cart-bar {
         position: static;
@@ -476,71 +520,6 @@ foreach ($practicePapers as $paper) {
     </div>
 
     <div class="eq-page-head text-start mt-5">
-        <h3>Free Tests</h3>
-        <p class="subtitle">These tests are available without payment and can be started during their live window.</p>
-    </div>
-    <div class="row g-3">
-        <?php foreach ($freeTestsList as $test): ?>
-            <?php
-                $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
-                $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
-                $statusLabel = 'Open';
-                $statusClass = 'text-bg-success';
-                $canAttempt = true;
-                if ($startAt && $nowUtc < $startAt) {
-                    $statusLabel = 'Upcoming';
-                    $statusClass = 'text-bg-warning';
-                    $canAttempt = false;
-                } elseif ($endAt && $nowUtc > $endAt) {
-                    $statusLabel = 'Closed';
-                    $statusClass = 'text-bg-secondary';
-                    $canAttempt = false;
-                }
-            ?>
-            <div class="col-md-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
-                            <h5 class="card-title mb-0"><?php echo htmlspecialchars($test['title']); ?></h5>
-                            <div class="d-flex flex-column align-items-end gap-2">
-                                <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
-                                <span class="badge text-bg-success">Free</span>
-                            </div>
-                        </div>
-                        <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 140, '...')); ?></p>
-                        <p class="small mb-2">
-                            <?php if ($test['teacher_name']): ?>
-                                Teacher: <?php echo htmlspecialchars($test['teacher_name']); ?><br>
-                            <?php endif; ?>
-                            Marks: <?php echo (int)$test['total_marks']; ?> |
-                            Duration: <?php echo (int)$test['duration_minutes']; ?> min<br>
-                            Start: <?php echo $startAt ? htmlspecialchars($startAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?><br>
-                            End: <?php echo $endAt ? htmlspecialchars($endAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?>
-                        </p>
-                        <?php if ($authUser && $authUser['role'] === 'student'): ?>
-                            <?php if (isset($attempted[(int)$test['id']])): ?>
-                                <a href="<?php echo htmlspecialchars(url_for('sira_report.php?attempt_id=' . (int)$attemptIds[(int)$test['id']])); ?>"
-                                   class="btn btn-sm btn-outline-primary">
-                                    View SIRA Report
-                                </a>
-                            <?php elseif ($canAttempt): ?>
-                                <a class="btn btn-sm btn-success" href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>">Start Free Test</a>
-                            <?php else: ?>
-                                <button class="btn btn-sm btn-outline-secondary" disabled><?php echo $statusLabel === 'Upcoming' ? 'Free test opens later' : 'Not available'; ?></button>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <span class="text-muted small">Login as a student to attempt.</span>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        <?php endforeach; ?>
-        <?php if (!$freeTestsList): ?>
-            <div class="col-12"><div class="eq-empty-state">No free tests are published yet.</div></div>
-        <?php endif; ?>
-    </div>
-
-    <div class="eq-page-head text-start mt-5">
         <h3>Paid Practice Papers</h3>
         <p class="subtitle">Purchase downloadable preparation PDFs in advance and keep them accessible from this catalogue.</p>
     </div>
@@ -585,34 +564,117 @@ foreach ($practicePapers as $paper) {
         <?php endif; ?>
     </div>
 
-    <div class="eq-page-head text-start mt-5">
-        <h3>Free Practice Papers</h3>
-        <p class="subtitle">Open revision resources that can be downloaded immediately without payment.</p>
-    </div>
-    <div class="row g-3">
-        <?php foreach ($freePracticePaperList as $paper): ?>
-            <div class="col-md-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body d-flex flex-column">
-                        <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
-                            <h5 class="card-title mb-0"><?php echo htmlspecialchars($paper['name']); ?></h5>
-                            <span class="badge text-bg-success">Free</span>
+    <div class="mt-5">
+        <details class="eq-collapsible-card">
+            <summary class="eq-collapsible-summary">
+                <span>
+                    Free Tests
+                    <span class="d-block eq-collapsible-copy">Collapsed by default. Expand to see tests that can be started for free.</span>
+                </span>
+                <span class="eq-collapsible-icon">&#9662;</span>
+            </summary>
+            <div class="eq-collapsible-body">
+                <div class="row g-3">
+                    <?php foreach ($freeTestsList as $test): ?>
+                        <?php
+                            $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
+                            $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
+                            $statusLabel = 'Open';
+                            $statusClass = 'text-bg-success';
+                            $canAttempt = true;
+                            if ($startAt && $nowUtc < $startAt) {
+                                $statusLabel = 'Upcoming';
+                                $statusClass = 'text-bg-warning';
+                                $canAttempt = false;
+                            } elseif ($endAt && $nowUtc > $endAt) {
+                                $statusLabel = 'Closed';
+                                $statusClass = 'text-bg-secondary';
+                                $canAttempt = false;
+                            }
+                        ?>
+                        <div class="col-md-4">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body d-flex flex-column">
+                                    <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
+                                        <h5 class="card-title mb-0"><?php echo htmlspecialchars($test['title']); ?></h5>
+                                        <div class="d-flex flex-column align-items-end gap-2">
+                                            <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
+                                            <span class="badge text-bg-success">Free</span>
+                                        </div>
+                                    </div>
+                                    <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 140, '...')); ?></p>
+                                    <p class="small mb-2">
+                                        <?php if ($test['teacher_name']): ?>
+                                            Teacher: <?php echo htmlspecialchars($test['teacher_name']); ?><br>
+                                        <?php endif; ?>
+                                        Marks: <?php echo (int)$test['total_marks']; ?> |
+                                        Duration: <?php echo (int)$test['duration_minutes']; ?> min<br>
+                                        Start: <?php echo $startAt ? htmlspecialchars($startAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?><br>
+                                        End: <?php echo $endAt ? htmlspecialchars($endAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?>
+                                    </p>
+                                    <?php if ($authUser && $authUser['role'] === 'student'): ?>
+                                        <?php if (isset($attempted[(int)$test['id']])): ?>
+                                            <a href="<?php echo htmlspecialchars(url_for('sira_report.php?attempt_id=' . (int)$attemptIds[(int)$test['id']])); ?>"
+                                               class="btn btn-sm btn-outline-primary">
+                                                View SIRA Report
+                                            </a>
+                                        <?php elseif ($canAttempt): ?>
+                                            <a class="btn btn-sm btn-success" href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>">Start Free Test</a>
+                                        <?php else: ?>
+                                            <button class="btn btn-sm btn-outline-secondary" disabled><?php echo $statusLabel === 'Upcoming' ? 'Free test opens later' : 'Not available'; ?></button>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="text-muted small">Login as a student to attempt.</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
                         </div>
-                        <p class="small text-muted mb-2">Mapped Test: <?php echo htmlspecialchars($paper['test_title']); ?></p>
-                        <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$paper['description']), 140, '...')); ?></p>
-                        <p class="small mb-3">Class: <?php echo htmlspecialchars($paper['class_name']); ?> | Year: <?php echo htmlspecialchars($paper['paper_year']); ?></p>
-                        <?php if ($authUser && $authUser['role'] === 'student'): ?>
-                            <a class="btn btn-sm btn-success" href="<?php echo htmlspecialchars(url_for('practice_paper_download.php?id=' . (int)$paper['id'])); ?>">Download Free Paper</a>
-                        <?php else: ?>
-                            <span class="text-muted small">Login as a student to download.</span>
-                        <?php endif; ?>
-                    </div>
+                    <?php endforeach; ?>
+                    <?php if (!$freeTestsList): ?>
+                        <div class="col-12"><div class="eq-empty-state">No free tests are published yet.</div></div>
+                    <?php endif; ?>
                 </div>
             </div>
-        <?php endforeach; ?>
-        <?php if (!$freePracticePaperList): ?>
-            <div class="col-12"><div class="eq-empty-state">No free practice papers are published yet.</div></div>
-        <?php endif; ?>
+        </details>
+    </div>
+
+    <div class="mt-4">
+        <details class="eq-collapsible-card">
+            <summary class="eq-collapsible-summary">
+                <span>
+                    Free Practice Papers
+                    <span class="d-block eq-collapsible-copy">Collapsed by default. Expand to see free downloadable revision papers.</span>
+                </span>
+                <span class="eq-collapsible-icon">&#9662;</span>
+            </summary>
+            <div class="eq-collapsible-body">
+                <div class="row g-3">
+                    <?php foreach ($freePracticePaperList as $paper): ?>
+                        <div class="col-md-4">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body d-flex flex-column">
+                                    <div class="d-flex justify-content-between gap-2 align-items-start mb-2">
+                                        <h5 class="card-title mb-0"><?php echo htmlspecialchars($paper['name']); ?></h5>
+                                        <span class="badge text-bg-success">Free</span>
+                                    </div>
+                                    <p class="small text-muted mb-2">Mapped Test: <?php echo htmlspecialchars($paper['test_title']); ?></p>
+                                    <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$paper['description']), 140, '...')); ?></p>
+                                    <p class="small mb-3">Class: <?php echo htmlspecialchars($paper['class_name']); ?> | Year: <?php echo htmlspecialchars($paper['paper_year']); ?></p>
+                                    <?php if ($authUser && $authUser['role'] === 'student'): ?>
+                                        <a class="btn btn-sm btn-success" href="<?php echo htmlspecialchars(url_for('practice_paper_download.php?id=' . (int)$paper['id'])); ?>">Download Free Paper</a>
+                                    <?php else: ?>
+                                        <span class="text-muted small">Login as a student to download.</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    <?php if (!$freePracticePaperList): ?>
+                        <div class="col-12"><div class="eq-empty-state">No free practice papers are published yet.</div></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </details>
     </div>
 
     <?php if ($authUser && $authUser['role'] === 'student'): ?>
@@ -625,6 +687,7 @@ foreach ($practicePapers as $paper) {
             const countNode = document.getElementById('selected-count');
             const totalNode = document.getElementById('selected-total');
             const itemsNode = document.getElementById('selected-items');
+            const storageKey = 'eduquestiq_bulk_purchase_cart_v1';
             if (!button || !message) return;
 
             function showMessage(type, text) {
@@ -672,6 +735,39 @@ foreach ($practicePapers as $paper) {
                 });
             }
 
+            function saveSelection() {
+                const selectedValues = Array.from(document.querySelectorAll('.bulk-purchase-item:checked')).map(function (input) {
+                    return input.value;
+                });
+                try {
+                    window.localStorage.setItem(storageKey, JSON.stringify(selectedValues));
+                } catch (error) {
+                }
+            }
+
+            function restoreSelection() {
+                let selectedValues = [];
+                try {
+                    selectedValues = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
+                } catch (error) {
+                    selectedValues = [];
+                }
+                if (!Array.isArray(selectedValues)) {
+                    selectedValues = [];
+                }
+
+                document.querySelectorAll('.bulk-purchase-item').forEach(function (input) {
+                    input.checked = selectedValues.indexOf(input.value) !== -1;
+                });
+            }
+
+            function clearSelection() {
+                try {
+                    window.localStorage.removeItem(storageKey);
+                } catch (error) {
+                }
+            }
+
             async function postJson(url, payload) {
                 const response = await fetch(url, {
                     method: 'POST',
@@ -690,9 +786,15 @@ foreach ($practicePapers as $paper) {
                 input.addEventListener('change', function () {
                     syncSelectedStyles();
                     updateCartSummary();
+                    saveSelection();
                 });
             });
 
+            if (window.location.search.indexOf('purchase=success') !== -1) {
+                clearSelection();
+            }
+
+            restoreSelection();
             syncSelectedStyles();
             updateCartSummary();
 
@@ -745,6 +847,7 @@ foreach ($practicePapers as $paper) {
                                 razorpay_payment_id: response.razorpay_payment_id || '',
                                 razorpay_signature: response.razorpay_signature || ''
                             });
+                            clearSelection();
                             showMessage('success', 'Payment verified. Refreshing your catalogue...');
                             window.location.href = verify.redirect_url || <?php echo json_encode(url_for('tests.php?purchase=success')); ?>;
                         } catch (error) {
