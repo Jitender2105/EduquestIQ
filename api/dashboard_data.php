@@ -14,6 +14,13 @@ if (!$user) {
 }
 
 $pdo = get_pdo();
+$hasSchoolsTable = false;
+$hasSchoolNameColumn = false;
+$hasSchoolStateColumn = false;
+$hasAttributesTable = false;
+$hasSubAttributesTable = false;
+$hasSkillProgressTable = false;
+$hasCommunityPostsTable = false;
 
 function json_result(array $data): void
 {
@@ -34,8 +41,17 @@ function table_exists(PDO $pdo, string $table): bool
     return $cache[$table];
 }
 
+function column_exists(PDO $pdo, string $table, string $column): bool
+{
+    return table_exists($pdo, $table) && table_has_column($pdo, $table, $column);
+}
+
 function load_community(PDO $pdo): array
 {
+    if (!table_exists($pdo, 'community_posts') || !table_exists($pdo, 'users')) {
+        return [];
+    }
+
     $stmt = $pdo->query(
         'SELECT cp.content, u.name
          FROM community_posts cp
@@ -56,6 +72,10 @@ function load_community(PDO $pdo): array
 
 function load_recent_achievements(PDO $pdo, int $userId): array
 {
+    if (!table_exists($pdo, 'user_achievements') || !table_exists($pdo, 'achievements')) {
+        return [];
+    }
+
     $stmt = $pdo->prepare(
         'SELECT a.title, a.description
          FROM user_achievements ua
@@ -111,13 +131,24 @@ function suggestion_paragraphs_for_scores(array $rows, string $subject, string $
     return $paragraphs;
 }
 
+$hasSchoolsTable = table_exists($pdo, 'schools');
+$hasSchoolNameColumn = column_exists($pdo, 'schools', 'name');
+$hasSchoolStateColumn = column_exists($pdo, 'schools', 'state');
+$hasAttributesTable = table_exists($pdo, 'attributes');
+$hasSubAttributesTable = table_exists($pdo, 'sub_attributes');
+$hasSkillProgressTable = table_exists($pdo, 'skill_progress');
+$hasCommunityPostsTable = table_exists($pdo, 'community_posts');
+
 switch ($user['role']) {
     case 'student':
         $studentId = (int)$user['sub'];
+        $studentSchoolSelect = $hasSchoolsTable && $hasSchoolNameColumn ? 's.name AS school_name' : 'NULL AS school_name';
+        $studentStateSelect = $hasSchoolsTable && $hasSchoolStateColumn ? 's.state AS school_state' : 'NULL AS school_state';
+        $studentSchoolJoin = $hasSchoolsTable ? 'LEFT JOIN schools s ON s.id = u.school_id' : '';
         $studentInfoStmt = $pdo->prepare(
-            'SELECT u.id, u.name, u.grade, u.school_id, s.name AS school_name, s.state AS school_state
+            'SELECT u.id, u.name, u.grade, u.school_id, ' . $studentSchoolSelect . ', ' . $studentStateSelect . '
              FROM users u
-             LEFT JOIN schools s ON s.id = u.school_id
+             ' . $studentSchoolJoin . '
              WHERE u.id = ?'
         );
         $studentInfoStmt->execute([$studentId]);
@@ -137,25 +168,44 @@ switch ($user['role']) {
         $stmt->execute([$studentId]);
         $recentTests = $stmt->fetchAll();
 
-        $stmt = $pdo->prepare(
-            'SELECT a.name AS attribute_name, COALESCE(AVG(sp.score), 0) AS score
-             FROM attributes a
-             LEFT JOIN skill_progress sp ON sp.attribute_id = a.id AND sp.student_id = ?
-             GROUP BY a.id, a.name
-             ORDER BY a.name'
-        );
-        $stmt->execute([$studentId]);
-        $attributeRows = $stmt->fetchAll();
+        $attributeRows = [];
+        if ($hasAttributesTable) {
+            if ($hasSkillProgressTable) {
+                $stmt = $pdo->prepare(
+                    'SELECT a.name AS attribute_name, COALESCE(AVG(sp.score), 0) AS score
+                     FROM attributes a
+                     LEFT JOIN skill_progress sp ON sp.attribute_id = a.id AND sp.student_id = ?
+                     GROUP BY a.id, a.name
+                     ORDER BY a.name'
+                );
+                $stmt->execute([$studentId]);
+                $attributeRows = $stmt->fetchAll();
+            } else {
+                $attributeRows = $pdo->query('SELECT name AS attribute_name, 0 AS score FROM attributes ORDER BY name')->fetchAll();
+            }
+        }
 
-        $stmt = $pdo->prepare(
-            'SELECT sa.name AS sub_name, COALESCE(sp.score, 0) AS score, a.name AS attribute_name
-             FROM sub_attributes sa
-             JOIN attributes a ON a.id = sa.attribute_id
-             LEFT JOIN skill_progress sp ON sp.sub_attribute_id = sa.id AND sp.student_id = ?
-             ORDER BY a.name, sa.name'
-        );
-        $stmt->execute([$studentId]);
-        $subAttributeRows = $stmt->fetchAll();
+        $subAttributeRows = [];
+        if ($hasSubAttributesTable && $hasAttributesTable) {
+            if ($hasSkillProgressTable) {
+                $stmt = $pdo->prepare(
+                    'SELECT sa.name AS sub_name, COALESCE(sp.score, 0) AS score, a.name AS attribute_name
+                     FROM sub_attributes sa
+                     JOIN attributes a ON a.id = sa.attribute_id
+                     LEFT JOIN skill_progress sp ON sp.sub_attribute_id = sa.id AND sp.student_id = ?
+                     ORDER BY a.name, sa.name'
+                );
+                $stmt->execute([$studentId]);
+                $subAttributeRows = $stmt->fetchAll();
+            } else {
+                $subAttributeRows = $pdo->query(
+                    'SELECT sa.name AS sub_name, 0 AS score, a.name AS attribute_name
+                     FROM sub_attributes sa
+                     JOIN attributes a ON a.id = sa.attribute_id
+                     ORDER BY a.name, sa.name'
+                )->fetchAll();
+            }
+        }
 
         $avgTestScore = 0.0;
         if ($recentTests) {
@@ -195,7 +245,7 @@ switch ($user['role']) {
             $sameClassStmt->execute([$studentSchoolId, $studentGrade]);
             $sameSchoolClassAvg = (float)$sameClassStmt->fetchColumn();
 
-            if ($studentSchoolState !== '') {
+            if ($studentSchoolState !== '' && $hasSchoolsTable && $hasSchoolStateColumn) {
                 $stateStmt = $pdo->prepare(
                     'SELECT u.name, s.name AS school_name, COALESCE(AVG(ta.score), 0) AS score
                      FROM users u
@@ -357,18 +407,20 @@ switch ($user['role']) {
         $attemptCount = 0;
 
         if ($childId > 0) {
-            $stmt = $pdo->prepare(
-                'SELECT a.name, AVG(sp.score) AS score
-                 FROM skill_progress sp
-                 JOIN attributes a ON a.id = sp.attribute_id
-                 WHERE sp.student_id = ?
-                 GROUP BY a.id, a.name
-                 ORDER BY a.name'
-            );
-            $stmt->execute([$childId]);
-            foreach ($stmt->fetchAll() as $row) {
-                $attrLabels[] = $row['name'];
-                $attrScores[] = (float)$row['score'];
+            if ($hasSkillProgressTable && $hasAttributesTable) {
+                $stmt = $pdo->prepare(
+                    'SELECT a.name, AVG(sp.score) AS score
+                     FROM skill_progress sp
+                     JOIN attributes a ON a.id = sp.attribute_id
+                     WHERE sp.student_id = ?
+                     GROUP BY a.id, a.name
+                     ORDER BY a.name'
+                );
+                $stmt->execute([$childId]);
+                foreach ($stmt->fetchAll() as $row) {
+                    $attrLabels[] = $row['name'];
+                    $attrScores[] = (float)$row['score'];
+                }
             }
 
             $stmt = $pdo->prepare('SELECT COALESCE(AVG(score),0), COUNT(*) FROM test_attempts WHERE student_id = ?');
@@ -552,7 +604,7 @@ switch ($user['role']) {
             ['label' => 'Courses', 'value' => $teacherCourseCount],
             ['label' => 'Tests', 'value' => count($testRows)],
             ['label' => 'Ranked Students', 'value' => count($rankingRows)],
-            ['label' => 'Community Posts', 'value' => (int)$pdo->query('SELECT COUNT(*) FROM community_posts')->fetchColumn()],
+            ['label' => 'Community Posts', 'value' => $hasCommunityPostsTable ? (int)$pdo->query('SELECT COUNT(*) FROM community_posts')->fetchColumn() : 0],
         ];
         $response['widgets'] = [
             [
@@ -591,14 +643,21 @@ switch ($user['role']) {
         $attemptCount = (int)$pdo->query('SELECT COUNT(*) FROM test_attempts')->fetchColumn();
         $studentCount = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'student'")->fetchColumn();
 
-        $stmt = $pdo->query(
-            'SELECT a.name, AVG(sp.score) AS avg_score
-             FROM attributes a
-             LEFT JOIN skill_progress sp ON sp.attribute_id = a.id
-             GROUP BY a.id, a.name
-             ORDER BY a.name'
-        );
-        $skillRows = $stmt->fetchAll();
+        $skillRows = [];
+        if ($hasAttributesTable) {
+            if ($hasSkillProgressTable) {
+                $stmt = $pdo->query(
+                    'SELECT a.name, AVG(sp.score) AS avg_score
+                     FROM attributes a
+                     LEFT JOIN skill_progress sp ON sp.attribute_id = a.id
+                     GROUP BY a.id, a.name
+                     ORDER BY a.name'
+                );
+                $skillRows = $stmt->fetchAll();
+            } else {
+                $skillRows = $pdo->query('SELECT name, 0 AS avg_score FROM attributes ORDER BY name')->fetchAll();
+            }
+        }
         $skillLabels = [];
         $skillValues = [];
         foreach ($skillRows as $row) {
@@ -686,11 +745,16 @@ switch ($user['role']) {
         $schoolState = '';
 
         if ($schoolId > 0) {
-            $stmt = $pdo->prepare('SELECT name, state FROM schools WHERE id = ?');
-            $stmt->execute([$schoolId]);
-            $school = $stmt->fetch() ?: ['name' => '', 'state' => ''];
-            $schoolName = (string)($school['name'] ?? '');
-            $schoolState = (string)($school['state'] ?? '');
+            if ($hasSchoolsTable) {
+                $schoolSelectParts = [];
+                $schoolSelectParts[] = $hasSchoolNameColumn ? 'name' : 'NULL AS name';
+                $schoolSelectParts[] = $hasSchoolStateColumn ? 'state' : 'NULL AS state';
+                $stmt = $pdo->prepare('SELECT ' . implode(', ', $schoolSelectParts) . ' FROM schools WHERE id = ?');
+                $stmt->execute([$schoolId]);
+                $school = $stmt->fetch() ?: ['name' => '', 'state' => ''];
+                $schoolName = (string)($school['name'] ?? '');
+                $schoolState = (string)($school['state'] ?? '');
+            }
 
             $gradeStmt = $pdo->prepare(
                 'SELECT DISTINCT COALESCE(NULLIF(TRIM(grade), ""), "Unassigned") AS grade_label
@@ -701,6 +765,15 @@ switch ($user['role']) {
             $gradeStmt->execute([$schoolId]);
             $gradeOptions = array_map(static fn (array $row): string => (string)$row['grade_label'], $gradeStmt->fetchAll());
 
+            $skillJoinSql = $hasSkillProgressTable
+                ? 'LEFT JOIN (
+                        SELECT student_id, AVG(score) AS avg_score
+                        FROM skill_progress
+                        GROUP BY student_id
+                   ) skill ON skill.student_id = u.id'
+                : '';
+            $skillValueSql = $hasSkillProgressTable ? 'COALESCE(skill.avg_score, 0)' : '0';
+
             $gradeRowsStmt = $pdo->prepare(
                 'SELECT base.grade_label,
                         COUNT(DISTINCT base.student_id) AS student_count,
@@ -710,14 +783,10 @@ switch ($user['role']) {
                     SELECT u.id AS student_id,
                            COALESCE(NULLIF(TRIM(u.grade), ""), "Unassigned") AS grade_label,
                            ta.id AS attempt_id,
-                           COALESCE(skill.avg_score, 0) AS student_sira
+                           ' . $skillValueSql . ' AS student_sira
                     FROM users u
                     LEFT JOIN test_attempts ta ON ta.student_id = u.id
-                    LEFT JOIN (
-                        SELECT student_id, AVG(score) AS avg_score
-                        FROM skill_progress
-                        GROUP BY student_id
-                    ) skill ON skill.student_id = u.id
+                    ' . $skillJoinSql . '
                     WHERE u.role = "student" AND u.school_id = ?
                  ) base
                  GROUP BY base.grade_label
@@ -726,18 +795,22 @@ switch ($user['role']) {
             $gradeRowsStmt->execute([$schoolId]);
             $gradeRows = $gradeRowsStmt->fetchAll();
 
-            $statsStmt = $pdo->prepare(
-                'SELECT COALESCE(AVG(scores.avg_score), 0) AS avg_score,
-                        COUNT(DISTINCT ta.id) AS attempt_count,
-                        COUNT(DISTINCT u.id) AS student_count,
-                        COALESCE(AVG(scores.avg_score), 0) AS overall_sira
-                 FROM users u
-                 LEFT JOIN test_attempts ta ON ta.student_id = u.id
-                 LEFT JOIN (
+            $scoreJoinSql = $hasSkillProgressTable
+                ? 'LEFT JOIN (
                     SELECT student_id, AVG(score) AS avg_score
                     FROM skill_progress
                     GROUP BY student_id
-                 ) scores ON scores.student_id = u.id
+                 ) scores ON scores.student_id = u.id'
+                : '';
+            $scoreAvgSql = $hasSkillProgressTable ? 'COALESCE(AVG(scores.avg_score), 0)' : '0';
+            $statsStmt = $pdo->prepare(
+                'SELECT ' . $scoreAvgSql . ' AS avg_score,
+                        COUNT(DISTINCT ta.id) AS attempt_count,
+                        COUNT(DISTINCT u.id) AS student_count,
+                        ' . $scoreAvgSql . ' AS overall_sira
+                 FROM users u
+                 LEFT JOIN test_attempts ta ON ta.student_id = u.id
+                 ' . $scoreJoinSql . '
                  WHERE u.school_id = ? AND u.role = "student"'
             );
             $statsStmt->execute([$schoolId]);
@@ -749,19 +822,15 @@ switch ($user['role']) {
 
             $studentStmt = $pdo->prepare(
                 'SELECT u.id, u.name, COALESCE(NULLIF(TRIM(u.grade), ""), "Unassigned") AS grade_label,
-                        COALESCE(skill.avg_score, 0) AS sira_score,
+                        ' . $skillValueSql . ' AS sira_score,
                         COUNT(DISTINCT ta.id) AS attempts
                  FROM users u
                  LEFT JOIN test_attempts ta ON ta.student_id = u.id
-                 LEFT JOIN (
-                    SELECT student_id, AVG(score) AS avg_score
-                    FROM skill_progress
-                    GROUP BY student_id
-                 ) skill ON skill.student_id = u.id
+                 ' . $skillJoinSql . '
                  WHERE u.role = "student" AND u.school_id = ?'
                     . ($selectedGrade !== '' ? ' AND COALESCE(NULLIF(TRIM(u.grade), ""), "Unassigned") = ?' : '') .
                 '
-                 GROUP BY u.id, u.name, grade_label, skill.avg_score
+                 GROUP BY u.id, u.name, grade_label, sira_score
                  ORDER BY grade_label ASC, sira_score DESC, u.name ASC'
             );
             $params = [$schoolId];
@@ -798,20 +867,24 @@ switch ($user['role']) {
             }
             unset($student);
 
-            if ($schoolState !== '') {
+            if ($schoolState !== '' && $hasSchoolsTable && $hasSchoolStateColumn) {
+                $comparisonScoreJoinSql = $hasSkillProgressTable
+                    ? 'LEFT JOIN (
+                        SELECT student_id, AVG(score) AS avg_score
+                        FROM skill_progress
+                        GROUP BY student_id
+                     ) scores ON scores.student_id = u.id'
+                    : '';
+                $comparisonScoreSql = $hasSkillProgressTable ? 'COALESCE(AVG(scores.avg_score), 0)' : '0';
                 $comparisonStmt = $pdo->prepare(
                     'SELECT s.id, s.name, s.city, s.state,
                             COUNT(DISTINCT u.id) AS student_count,
                             COUNT(DISTINCT ta.id) AS test_attempted_count,
-                            COALESCE(AVG(scores.avg_score), 0) AS sira_rating
+                            ' . $comparisonScoreSql . ' AS sira_rating
                      FROM schools s
                      LEFT JOIN users u ON u.school_id = s.id AND u.role = "student"
                      LEFT JOIN test_attempts ta ON ta.student_id = u.id
-                     LEFT JOIN (
-                        SELECT student_id, AVG(score) AS avg_score
-                        FROM skill_progress
-                        GROUP BY student_id
-                     ) scores ON scores.student_id = u.id
+                     ' . $comparisonScoreJoinSql . '
                      WHERE s.state = ?
                      GROUP BY s.id, s.name, s.city, s.state
                      ORDER BY sira_rating DESC, student_count DESC

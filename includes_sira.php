@@ -3,18 +3,19 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 
-function table_has_column(PDO $pdo, string $table, string $column): bool
-{
-    $stmt = $pdo->prepare(
-        'SELECT 1
-         FROM information_schema.columns
-         WHERE table_schema = DATABASE()
-           AND table_name = ?
-           AND column_name = ?
-         LIMIT 1'
-    );
-    $stmt->execute([$table, $column]);
-    return (bool)$stmt->fetchColumn();
+if (!function_exists('sira_table_exists')) {
+    function sira_table_exists(PDO $pdo, string $table): bool
+    {
+        static $cache = [];
+        if (array_key_exists($table, $cache)) {
+            return $cache[$table];
+        }
+
+        $stmt = $pdo->prepare('SHOW TABLES LIKE ?');
+        $stmt->execute([$table]);
+        $cache[$table] = (bool)$stmt->fetchColumn();
+        return $cache[$table];
+    }
 }
 
 function sira_band(float $score): array
@@ -118,6 +119,12 @@ function sira_empty_rank_block(): array
 function sira_build_test_report(PDO $pdo, int $attemptId): ?array
 {
     $hasAnswerStatus = table_has_column($pdo, 'test_answers', 'answer_status');
+    $hasSchoolsTable = sira_table_exists($pdo, 'schools');
+    $hasSchoolNameColumn = $hasSchoolsTable && table_has_column($pdo, 'schools', 'name');
+    $hasSchoolStateColumn = $hasSchoolsTable && table_has_column($pdo, 'schools', 'state');
+    $schoolJoin = $hasSchoolsTable ? 'LEFT JOIN schools s ON s.id = u.school_id' : '';
+    $schoolNameSelect = $hasSchoolNameColumn ? 's.name AS student_school_name' : 'NULL AS student_school_name';
+    $schoolStateSelect = $hasSchoolStateColumn ? 's.state AS student_school_state' : 'NULL AS student_school_state';
 
     $stmt = $pdo->prepare(
         'SELECT ta.id AS attempt_id,
@@ -133,12 +140,12 @@ function sira_build_test_report(PDO $pdo, int $attemptId): ?array
                 u.email AS student_email,
                 u.grade AS student_grade,
                 u.school_id AS student_school_id,
-                s.name AS student_school_name,
-                s.state AS student_school_state
+                ' . $schoolNameSelect . ',
+                ' . $schoolStateSelect . '
          FROM test_attempts ta
          JOIN tests t ON t.id = ta.test_id
          JOIN users u ON u.id = ta.student_id
-         LEFT JOIN schools s ON s.id = u.school_id
+         ' . $schoolJoin . '
          WHERE ta.id = ?'
     );
     $stmt->execute([$attemptId]);
@@ -233,20 +240,25 @@ function sira_build_test_report(PDO $pdo, int $attemptId): ?array
         }
     }
 
-    $mappingStmt = $pdo->prepare(
-        'SELECT qam.question_id,
-                qam.attribute_id,
-                qam.sub_attribute_id,
-                qam.weight,
-                a.name AS attribute_name,
-                sa.name AS sub_attribute_name
-         FROM question_attribute_mapping qam
-         JOIN attributes a ON a.id = qam.attribute_id
-         JOIN sub_attributes sa ON sa.id = qam.sub_attribute_id
-         WHERE qam.question_id IN (' . $in . ')'
-    );
-    $mappingStmt->execute($questionIds);
-    $mappingRows = $mappingStmt->fetchAll();
+    $mappingRows = [];
+    if (sira_table_exists($pdo, 'question_attribute_mapping')
+        && sira_table_exists($pdo, 'attributes')
+        && sira_table_exists($pdo, 'sub_attributes')) {
+        $mappingStmt = $pdo->prepare(
+            'SELECT qam.question_id,
+                    qam.attribute_id,
+                    qam.sub_attribute_id,
+                    qam.weight,
+                    a.name AS attribute_name,
+                    sa.name AS sub_attribute_name
+             FROM question_attribute_mapping qam
+             JOIN attributes a ON a.id = qam.attribute_id
+             JOIN sub_attributes sa ON sa.id = qam.sub_attribute_id
+             WHERE qam.question_id IN (' . $in . ')'
+        );
+        $mappingStmt->execute($questionIds);
+        $mappingRows = $mappingStmt->fetchAll();
+    }
 
     $mappingsByQuestion = [];
     foreach ($mappingRows as $row) {
@@ -416,11 +428,13 @@ function sira_build_test_report(PDO $pdo, int $attemptId): ?array
         $chartScores[] = round((float)$attrRow['score'], 1);
     }
 
+    $comparisonStateSelect = $hasSchoolStateColumn ? 's.state' : 'NULL AS state';
+    $comparisonSchoolJoin = $hasSchoolsTable ? 'LEFT JOIN schools s ON s.id = u.school_id' : '';
     $comparisonStmt = $pdo->prepare(
-        'SELECT ta.score, u.grade, u.school_id, s.state
+        'SELECT ta.score, u.grade, u.school_id, ' . $comparisonStateSelect . '
          FROM test_attempts ta
          JOIN users u ON u.id = ta.student_id
-         LEFT JOIN schools s ON s.id = u.school_id
+         ' . $comparisonSchoolJoin . '
          WHERE ta.test_id = ?'
     );
     $comparisonStmt->execute([(int)$attempt['test_id']]);

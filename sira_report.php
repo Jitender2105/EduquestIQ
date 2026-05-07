@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/includes_auth.php';
+$user = require_auth(['student']);
 require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_sira.php';
-
-$user = require_auth(['student']);
 $attemptId = isset($_GET['attempt_id']) ? (int)$_GET['attempt_id'] : 0;
 $pdo = get_pdo();
 $report = $attemptId > 0 ? sira_build_test_report($pdo, $attemptId) : null;
