@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_csrf.php';
+require_once __DIR__ . '/includes_payments.php';
 
 $pdo = get_pdo();
 $leadErrors = [];
@@ -166,6 +167,79 @@ $testimonials = [
         'tags' => ['Technical Skills', 'Digital Literacy', 'Leadership'],
     ],
 ];
+
+$featuredTests = [];
+$featuredPracticePapers = [];
+$featuredPaidTestsPurchased = [];
+$featuredPaidPapersPurchased = [];
+$homeNowUtc = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+$homeStudentGrade = '';
+$testsHaveActiveColumn = table_has_column($pdo, 'tests', 'is_active');
+$testsHaveGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
+$papersHaveActiveColumn = practice_paper_table_exists($pdo) && table_has_column($pdo, 'practice_papers', 'is_active');
+
+if ($authUser && ($authUser['role'] ?? '') === 'student') {
+    $gradeStmt = $pdo->prepare('SELECT grade FROM users WHERE id = ? LIMIT 1');
+    $gradeStmt->execute([(int)$authUser['sub']]);
+    $homeStudentGrade = trim((string)$gradeStmt->fetchColumn());
+
+    $purchaseStmt = $pdo->prepare(
+        'SELECT test_id
+         FROM test_purchases
+         WHERE student_id = ? AND payment_status = "paid"'
+    );
+    $purchaseStmt->execute([(int)$authUser['sub']]);
+    foreach ($purchaseStmt->fetchAll() as $row) {
+        $featuredPaidTestsPurchased[(int)$row['test_id']] = true;
+    }
+
+    if (practice_paper_purchase_table_exists($pdo)) {
+        $paperPurchaseStmt = $pdo->prepare(
+            'SELECT practice_paper_id
+             FROM practice_paper_purchases
+             WHERE student_id = ? AND payment_status = "paid"'
+        );
+        $paperPurchaseStmt->execute([(int)$authUser['sub']]);
+        foreach ($paperPurchaseStmt->fetchAll() as $row) {
+            $featuredPaidPapersPurchased[(int)$row['practice_paper_id']] = true;
+        }
+    }
+}
+
+try {
+    $testWhere = ['COALESCE(t.price_inr, 0) > 0'];
+    if ($testsHaveActiveColumn) {
+        $testWhere[] = 't.is_active = 1';
+    }
+    if ($authUser && ($authUser['role'] ?? '') === 'student' && $testsHaveGradeColumn && $homeStudentGrade !== '') {
+        $testWhere[] = "(t.target_grade = " . $pdo->quote($homeStudentGrade) . " OR t.target_grade IS NULL OR t.target_grade = '')";
+    }
+    $featuredTests = $pdo->query(
+        'SELECT t.id, t.title, t.description, t.start_at, t.end_at, t.total_marks, t.duration_minutes, t.price_inr, t.created_at,
+                u.name AS teacher_name
+         FROM tests t
+         LEFT JOIN users u ON u.id = t.created_by
+         WHERE ' . implode(' AND ', $testWhere) . '
+         ORDER BY t.created_at DESC
+         LIMIT 8'
+    )->fetchAll();
+
+    if (practice_paper_table_exists($pdo)) {
+        $paperWhere = ["pp.access_type = 'paid'", 'COALESCE(pp.amount_inr, 0) > 0'];
+        $paperWhere[] = $papersHaveActiveColumn ? 'pp.is_active = 1' : 'pp.status = "published"';
+        $featuredPracticePapers = $pdo->query(
+            'SELECT pp.*, t.title AS test_title
+             FROM practice_papers pp
+             JOIN tests t ON t.id = pp.test_id
+             WHERE ' . implode(' AND ', $paperWhere) . '
+             ORDER BY pp.created_at DESC, pp.id DESC
+             LIMIT 8'
+        )->fetchAll();
+    }
+} catch (Throwable $e) {
+    $featuredTests = [];
+    $featuredPracticePapers = [];
+}
 ?>
 
 <style>
@@ -306,6 +380,142 @@ $testimonials = [
             margin-top: 2px;
         }
     }
+    .eq-featured-home-section {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 54px 14px 24px;
+    }
+    .eq-featured-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        align-items: start;
+    }
+    .eq-featured-panel {
+        background: #fff;
+        border: 1px solid rgba(67, 84, 149, 0.12);
+        border-radius: 22px;
+        box-shadow: 0 16px 32px rgba(23, 35, 84, 0.08);
+        overflow: hidden;
+    }
+    .eq-featured-head {
+        padding: 18px 18px 0;
+    }
+    .eq-featured-head h3 {
+        margin: 0 0 6px;
+        font-size: 1.18rem;
+    }
+    .eq-featured-head p {
+        margin: 0;
+        color: #6b738f;
+        font-size: 0.88rem;
+    }
+    .eq-featured-list {
+        max-height: 620px;
+        overflow-y: auto;
+        padding: 14px 18px 18px;
+        display: grid;
+        gap: 12px;
+    }
+    .eq-featured-card {
+        border: 1px solid rgba(67, 84, 149, 0.1);
+        border-radius: 16px;
+        padding: 14px;
+        background: linear-gradient(180deg, #fff, #f9fbff);
+    }
+    .eq-featured-card h4 {
+        font-size: 1rem;
+        margin: 0 0 6px;
+    }
+    .eq-featured-card p {
+        color: #6f7794;
+        font-size: 0.84rem;
+        margin-bottom: 8px;
+    }
+    .eq-featured-meta {
+        color: #5c6482;
+        font-size: 0.78rem;
+        margin-bottom: 10px;
+    }
+    .eq-featured-meta strong {
+        color: #273264;
+    }
+    .eq-featured-card .badge {
+        border-radius: 999px;
+    }
+    .eq-featured-cart {
+        display: none;
+        margin: 22px 0 0;
+        background: linear-gradient(135deg, #101937, #1b2552);
+        color: #fff;
+        border-radius: 24px;
+        padding: 18px;
+        box-shadow: 0 18px 36px rgba(16, 25, 55, 0.24);
+    }
+    .eq-featured-cart.is-visible {
+        display: block;
+    }
+    .eq-featured-cart h4 {
+        margin: 0 0 4px;
+        color: #fff;
+    }
+    .eq-featured-cart p {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 0.85rem;
+    }
+    .eq-featured-cart-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        margin-top: 14px;
+    }
+    .eq-featured-cart-stats strong {
+        display: block;
+        font-size: 1.15rem;
+        color: #fff;
+    }
+    .eq-featured-cart-stats span {
+        display: block;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.76rem;
+    }
+    .eq-featured-cart-items {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+    }
+    .eq-featured-cart-pill {
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: #fff;
+        font-size: 0.79rem;
+    }
+    .eq-featured-cart-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+    }
+    .eq-featured-cart-actions .btn {
+        min-width: 150px;
+    }
+    .eq-featured-add-btn.is-added {
+        background: #142458;
+        border-color: #142458;
+        color: #fff;
+    }
+    @media (max-width: 991px) {
+        .eq-featured-grid {
+            grid-template-columns: 1fr;
+        }
+        .eq-featured-list {
+            max-height: 520px;
+        }
+    }
 </style>
 
 <section class="eq-home-hero">
@@ -384,6 +594,162 @@ $testimonials = [
         </div>
     </div>
 </section>
+
+<?php if ($featuredTests !== [] || $featuredPracticePapers !== []): ?>
+<section class="eq-featured-home-section">
+    <div class="eq-section-title">
+        <h2>Featured Assessments</h2>
+        <p>Explore high-demand tests and practice papers from the homepage, add them to cart, and continue to the full catalogue anytime.</p>
+    </div>
+
+    <?php if (!empty($_GET['purchase']) && $_GET['purchase'] === 'success'): ?>
+        <div class="alert alert-success">Purchase completed. Your featured items now reflect the latest access status.</div>
+    <?php endif; ?>
+
+    <div id="home-featured-message" class="alert d-none" role="alert"></div>
+
+    <div class="eq-featured-grid">
+        <article class="eq-featured-panel">
+            <div class="eq-featured-head d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h3>Featured Tests</h3>
+                    <p>Timed assessments you can secure now and start from the full tests page.</p>
+                </div>
+                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-primary btn-sm">View More</a>
+            </div>
+            <div class="eq-featured-list">
+                <?php foreach ($featuredTests as $test): ?>
+                    <?php
+                        $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
+                        $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
+                        $statusLabel = 'Open';
+                        $statusClass = 'text-bg-success';
+                        $canAttempt = true;
+                        if ($startAt && $homeNowUtc < $startAt) {
+                            $statusLabel = 'Upcoming';
+                            $statusClass = 'text-bg-warning';
+                            $canAttempt = false;
+                        } elseif ($endAt && $homeNowUtc > $endAt) {
+                            $statusLabel = 'Closed';
+                            $statusClass = 'text-bg-secondary';
+                            $canAttempt = false;
+                        }
+                        $testPrice = (float)($test['price_inr'] ?? 0);
+                        $isPurchased = !empty($featuredPaidTestsPurchased[(int)$test['id']]);
+                    ?>
+                    <article class="eq-featured-card">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <h4><?php echo htmlspecialchars($test['title']); ?></h4>
+                            <div class="d-flex flex-column align-items-end gap-2">
+                                <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
+                                <span class="badge text-bg-primary">Featured</span>
+                            </div>
+                        </div>
+                        <p><?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 120, '...')); ?></p>
+                        <div class="eq-featured-meta">
+                            <strong><?php echo htmlspecialchars(test_price_label($testPrice)); ?></strong>
+                            · <?php echo (int)$test['duration_minutes']; ?> min
+                            · <?php echo (int)$test['total_marks']; ?> marks
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
+                                <?php if ($isPurchased): ?>
+                                    <?php if ($canAttempt): ?>
+                                        <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>">Start Test</a>
+                                    <?php else: ?>
+                                        <button class="btn btn-outline-secondary btn-sm" disabled><?php echo $statusLabel === 'Upcoming' ? 'Purchased - starts later' : 'Not available'; ?></button>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary btn-sm eq-featured-add-btn"
+                                        data-item-value="test:<?php echo (int)$test['id']; ?>"
+                                        data-item-title="<?php echo htmlspecialchars($test['title']); ?>"
+                                        data-item-amount="<?php echo (int)amount_in_paise($testPrice); ?>"
+                                    >
+                                        Add to Cart
+                                    </button>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
+                            <?php endif; ?>
+                            <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="small text-decoration-none fw-semibold">See details</a>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        </article>
+
+        <article class="eq-featured-panel">
+            <div class="eq-featured-head d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h3>Featured Practice Papers</h3>
+                    <p>Downloadable revision papers linked to high-interest assessments and exam years.</p>
+                </div>
+                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-primary btn-sm">View More</a>
+            </div>
+            <div class="eq-featured-list">
+                <?php foreach ($featuredPracticePapers as $paper): ?>
+                    <?php
+                        $paperPrice = (float)($paper['amount_inr'] ?? 0);
+                        $hasPaperAccess = !empty($featuredPaidPapersPurchased[(int)$paper['id']]);
+                    ?>
+                    <article class="eq-featured-card">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <h4><?php echo htmlspecialchars($paper['name']); ?></h4>
+                            <span class="badge text-bg-primary">Featured</span>
+                        </div>
+                        <p><?php echo htmlspecialchars(text_preview(strip_tags((string)$paper['description']), 120, '...')); ?></p>
+                        <div class="eq-featured-meta">
+                            <strong><?php echo htmlspecialchars(test_price_label($paperPrice)); ?></strong>
+                            · <?php echo htmlspecialchars((string)$paper['class_name']); ?>
+                            · <?php echo htmlspecialchars((string)$paper['paper_year']); ?>
+                        </div>
+                        <div class="small text-muted mb-2">Mapped Test: <?php echo htmlspecialchars((string)$paper['test_title']); ?></div>
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
+                                <?php if ($hasPaperAccess): ?>
+                                    <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('practice_paper_download.php?id=' . (int)$paper['id'])); ?>">Download Paper</a>
+                                <?php else: ?>
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary btn-sm eq-featured-add-btn"
+                                        data-item-value="practice_paper:<?php echo (int)$paper['id']; ?>"
+                                        data-item-title="<?php echo htmlspecialchars($paper['name']); ?>"
+                                        data-item-amount="<?php echo (int)amount_in_paise($paperPrice); ?>"
+                                    >
+                                        Add to Cart
+                                    </button>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
+                            <?php endif; ?>
+                            <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="small text-decoration-none fw-semibold">See details</a>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        </article>
+    </div>
+
+    <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
+        <input type="hidden" id="home-payment-csrf-token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+        <section class="eq-featured-cart" id="home-featured-cart">
+            <h4>Featured Cart</h4>
+            <p>Your cart appears only after you add a featured item from the homepage.</p>
+            <div class="eq-featured-cart-stats">
+                <div><strong id="home-featured-count">0</strong><span>Selected items</span></div>
+                <div><strong id="home-featured-total">Rs 0</strong><span>Total cart value</span></div>
+            </div>
+            <div class="eq-featured-cart-items" id="home-featured-items"></div>
+            <div class="eq-featured-cart-actions">
+                <button type="button" class="btn btn-warning fw-semibold" id="home-featured-buy">Buy Featured Items</button>
+                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-light">View Full Test Page</a>
+            </div>
+        </section>
+    <?php endif; ?>
+</section>
+<?php endif; ?>
 
 <section class="eq-home-section">
     <div class="eq-section-title">
@@ -568,6 +934,9 @@ $eqCustomHomeFooter = true;
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<?php endif; ?>
 <script>
 if (window.jQuery && jQuery.fn.select2) {
     jQuery(function ($) {
@@ -578,6 +947,194 @@ if (window.jQuery && jQuery.fn.select2) {
         });
     });
 }
+
+<?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
+(function () {
+    const storageKey = 'eduquestiq_home_featured_cart_v1';
+    const cart = document.getElementById('home-featured-cart');
+    const countNode = document.getElementById('home-featured-count');
+    const totalNode = document.getElementById('home-featured-total');
+    const itemsNode = document.getElementById('home-featured-items');
+    const buyButton = document.getElementById('home-featured-buy');
+    const message = document.getElementById('home-featured-message');
+    const csrfToken = document.getElementById('home-payment-csrf-token') ? document.getElementById('home-payment-csrf-token').value : '';
+    const addButtons = Array.from(document.querySelectorAll('.eq-featured-add-btn'));
+
+    if (!cart || !countNode || !totalNode || !itemsNode || !buyButton || !message) {
+        return;
+    }
+
+    function showMessage(type, text) {
+        message.className = 'alert alert-' + type;
+        message.textContent = text;
+        message.classList.remove('d-none');
+    }
+
+    function formatInr(amountPaise) {
+        return 'Rs ' + (amountPaise / 100).toLocaleString('en-IN', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function loadSelection() {
+        try {
+            const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function saveSelection(values) {
+        window.localStorage.setItem(storageKey, JSON.stringify(values));
+    }
+
+    function renderCart() {
+        const selectedValues = loadSelection();
+        const selectedButtons = addButtons.filter(function (button) {
+            return selectedValues.indexOf(button.dataset.itemValue || '') !== -1;
+        });
+        const totalPaise = selectedButtons.reduce(function (sum, button) {
+            return sum + Number(button.dataset.itemAmount || 0);
+        }, 0);
+
+        addButtons.forEach(function (button) {
+            const active = selectedValues.indexOf(button.dataset.itemValue || '') !== -1;
+            button.classList.toggle('is-added', active);
+            button.textContent = active ? 'Added to Cart' : 'Add to Cart';
+        });
+
+        if (!selectedButtons.length) {
+            cart.classList.remove('is-visible');
+            countNode.textContent = '0';
+            totalNode.textContent = 'Rs 0';
+            itemsNode.innerHTML = '';
+            return;
+        }
+
+        cart.classList.add('is-visible');
+        countNode.textContent = String(selectedButtons.length);
+        totalNode.textContent = formatInr(totalPaise);
+        itemsNode.innerHTML = '';
+        selectedButtons.forEach(function (button) {
+            const pill = document.createElement('span');
+            pill.className = 'eq-featured-cart-pill';
+            pill.textContent = (button.dataset.itemTitle || 'Featured item') + ' · ' + formatInr(Number(button.dataset.itemAmount || 0));
+            itemsNode.appendChild(pill);
+        });
+    }
+
+    async function postJson(url, payload) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+            credentials: 'same-origin',
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json().catch(function () { return {}; });
+        if (!response.ok || data.success === false) {
+            throw new Error(data.error || 'Payment request failed.');
+        }
+        return data;
+    }
+
+    addButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+            const value = button.dataset.itemValue || '';
+            if (!value) return;
+
+            const selectedValues = loadSelection();
+            const index = selectedValues.indexOf(value);
+            if (index === -1) {
+                selectedValues.push(value);
+            } else {
+                selectedValues.splice(index, 1);
+            }
+            saveSelection(selectedValues);
+            renderCart();
+        });
+    });
+
+    if (window.location.search.indexOf('purchase=success') !== -1) {
+        saveSelection([]);
+    }
+
+    buyButton.addEventListener('click', async function () {
+        const selectedValues = loadSelection();
+        const selected = selectedValues.map(function (value) {
+            const parts = value.split(':');
+            return {type: parts[0], id: Number(parts[1])};
+        }).filter(function (item) {
+            return item.type && item.id > 0;
+        });
+
+        if (!selected.length) {
+            cart.classList.remove('is-visible');
+            return;
+        }
+
+        buyButton.disabled = true;
+        showMessage('info', 'Preparing secure checkout...');
+        let order;
+        try {
+            order = await postJson(<?php echo json_encode(url_for('api/create-order.php')); ?>, {
+                amount: 0,
+                currency: <?php echo json_encode(payment_gateway_currency()); ?>,
+                receipt: 'home-featured',
+                items: selected
+            });
+        } catch (error) {
+            showMessage('danger', error.message);
+            buyButton.disabled = false;
+            return;
+        }
+
+        const rzp = new Razorpay({
+            key: order.key_id,
+            amount: order.amount,
+            currency: order.currency,
+            name: 'EduquestIQ',
+            description: 'EduquestIQ featured purchase',
+            order_id: order.order_id,
+            prefill: {
+                name: <?php echo json_encode((string)$authUser['name']); ?>,
+                email: <?php echo json_encode((string)$authUser['email']); ?>
+            },
+            handler: async function (response) {
+                try {
+                    await postJson(<?php echo json_encode(url_for('api/verify-payment.php')); ?>, {
+                        razorpay_order_id: response.razorpay_order_id || '',
+                        razorpay_payment_id: response.razorpay_payment_id || '',
+                        razorpay_signature: response.razorpay_signature || ''
+                    });
+                    saveSelection([]);
+                    showMessage('success', 'Payment verified. Refreshing featured items...');
+                    window.location.href = <?php echo json_encode(url_for('index.php?purchase=success')); ?>;
+                } catch (error) {
+                    showMessage('danger', error.message);
+                    buyButton.disabled = false;
+                }
+            },
+            theme: {color: '#4374ff'},
+            modal: {
+                ondismiss: function () {
+                    showMessage('warning', 'Payment was cancelled. You can continue from the featured cart anytime.');
+                    buyButton.disabled = false;
+                }
+            }
+        });
+        rzp.on('payment.failed', function (response) {
+            const reason = response && response.error && response.error.description ? response.error.description : 'Payment failed. Please try again.';
+            showMessage('danger', reason);
+            buyButton.disabled = false;
+        });
+        rzp.open();
+    });
+
+    renderCart();
+})();
+<?php endif; ?>
 </script>
 <?php
 require_once __DIR__ . '/includes_footer.php';
