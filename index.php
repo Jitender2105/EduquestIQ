@@ -211,6 +211,7 @@ try {
     if ($testsHaveActiveColumn) {
         $testWhere[] = 't.is_active = 1';
     }
+    $testWhere[] = '(t.end_at IS NULL OR t.end_at >= UTC_TIMESTAMP())';
     if ($authUser && ($authUser['role'] ?? '') === 'student' && $testsHaveGradeColumn && $homeStudentGrade !== '') {
         $testWhere[] = "(t.target_grade = " . $pdo->quote($homeStudentGrade) . " OR t.target_grade IS NULL OR t.target_grade = '')";
     }
@@ -227,6 +228,10 @@ try {
     if (practice_paper_table_exists($pdo)) {
         $paperWhere = ["pp.access_type = 'paid'", 'COALESCE(pp.amount_inr, 0) > 0'];
         $paperWhere[] = $papersHaveActiveColumn ? 'pp.is_active = 1' : 'pp.status = "published"';
+        if ($testsHaveActiveColumn) {
+            $paperWhere[] = 't.is_active = 1';
+        }
+        $paperWhere[] = '(t.end_at IS NULL OR t.end_at >= UTC_TIMESTAMP())';
         $featuredPracticePapers = $pdo->query(
             'SELECT pp.*, t.title AS test_title
              FROM practice_papers pp
@@ -240,6 +245,10 @@ try {
     $featuredTests = [];
     $featuredPracticePapers = [];
 }
+
+$hasFeaturedTests = $featuredTests !== [];
+$hasFeaturedPracticePapers = $featuredPracticePapers !== [];
+$hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
 ?>
 
 <style>
@@ -390,6 +399,10 @@ try {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 18px;
         align-items: start;
+    }
+    .eq-featured-grid.eq-single {
+        grid-template-columns: minmax(0, 1fr);
+        max-width: 760px;
     }
     .eq-featured-panel {
         background: #fff;
@@ -595,162 +608,6 @@ try {
     </div>
 </section>
 
-<?php if ($featuredTests !== [] || $featuredPracticePapers !== []): ?>
-<section class="eq-featured-home-section">
-    <div class="eq-section-title">
-        <h2>Featured Assessments</h2>
-        <p>Explore high-demand tests and practice papers from the homepage, add them to cart, and continue to the full catalogue anytime.</p>
-    </div>
-
-    <?php if (!empty($_GET['purchase']) && $_GET['purchase'] === 'success'): ?>
-        <div class="alert alert-success">Purchase completed. Your featured items now reflect the latest access status.</div>
-    <?php endif; ?>
-
-    <div id="home-featured-message" class="alert d-none" role="alert"></div>
-
-    <div class="eq-featured-grid">
-        <article class="eq-featured-panel">
-            <div class="eq-featured-head d-flex justify-content-between align-items-start gap-3">
-                <div>
-                    <h3>Featured Tests</h3>
-                    <p>Timed assessments you can secure now and start from the full tests page.</p>
-                </div>
-                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-primary btn-sm">View More</a>
-            </div>
-            <div class="eq-featured-list">
-                <?php foreach ($featuredTests as $test): ?>
-                    <?php
-                        $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
-                        $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
-                        $statusLabel = 'Open';
-                        $statusClass = 'text-bg-success';
-                        $canAttempt = true;
-                        if ($startAt && $homeNowUtc < $startAt) {
-                            $statusLabel = 'Upcoming';
-                            $statusClass = 'text-bg-warning';
-                            $canAttempt = false;
-                        } elseif ($endAt && $homeNowUtc > $endAt) {
-                            $statusLabel = 'Closed';
-                            $statusClass = 'text-bg-secondary';
-                            $canAttempt = false;
-                        }
-                        $testPrice = (float)($test['price_inr'] ?? 0);
-                        $isPurchased = !empty($featuredPaidTestsPurchased[(int)$test['id']]);
-                    ?>
-                    <article class="eq-featured-card">
-                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                            <h4><?php echo htmlspecialchars($test['title']); ?></h4>
-                            <div class="d-flex flex-column align-items-end gap-2">
-                                <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
-                                <span class="badge text-bg-primary">Featured</span>
-                            </div>
-                        </div>
-                        <p><?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 120, '...')); ?></p>
-                        <div class="eq-featured-meta">
-                            <strong><?php echo htmlspecialchars(test_price_label($testPrice)); ?></strong>
-                            · <?php echo (int)$test['duration_minutes']; ?> min
-                            · <?php echo (int)$test['total_marks']; ?> marks
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center gap-2">
-                            <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
-                                <?php if ($isPurchased): ?>
-                                    <?php if ($canAttempt): ?>
-                                        <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>">Start Test</a>
-                                    <?php else: ?>
-                                        <button class="btn btn-outline-secondary btn-sm" disabled><?php echo $statusLabel === 'Upcoming' ? 'Purchased - starts later' : 'Not available'; ?></button>
-                                    <?php endif; ?>
-                                <?php else: ?>
-                                    <button
-                                        type="button"
-                                        class="btn btn-outline-primary btn-sm eq-featured-add-btn"
-                                        data-item-value="test:<?php echo (int)$test['id']; ?>"
-                                        data-item-title="<?php echo htmlspecialchars($test['title']); ?>"
-                                        data-item-amount="<?php echo (int)amount_in_paise($testPrice); ?>"
-                                    >
-                                        Add to Cart
-                                    </button>
-                                <?php endif; ?>
-                            <?php else: ?>
-                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
-                            <?php endif; ?>
-                            <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="small text-decoration-none fw-semibold">See details</a>
-                        </div>
-                    </article>
-                <?php endforeach; ?>
-            </div>
-        </article>
-
-        <article class="eq-featured-panel">
-            <div class="eq-featured-head d-flex justify-content-between align-items-start gap-3">
-                <div>
-                    <h3>Featured Practice Papers</h3>
-                    <p>Downloadable revision papers linked to high-interest assessments and exam years.</p>
-                </div>
-                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-primary btn-sm">View More</a>
-            </div>
-            <div class="eq-featured-list">
-                <?php foreach ($featuredPracticePapers as $paper): ?>
-                    <?php
-                        $paperPrice = (float)($paper['amount_inr'] ?? 0);
-                        $hasPaperAccess = !empty($featuredPaidPapersPurchased[(int)$paper['id']]);
-                    ?>
-                    <article class="eq-featured-card">
-                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                            <h4><?php echo htmlspecialchars($paper['name']); ?></h4>
-                            <span class="badge text-bg-primary">Featured</span>
-                        </div>
-                        <p><?php echo htmlspecialchars(text_preview(strip_tags((string)$paper['description']), 120, '...')); ?></p>
-                        <div class="eq-featured-meta">
-                            <strong><?php echo htmlspecialchars(test_price_label($paperPrice)); ?></strong>
-                            · <?php echo htmlspecialchars((string)$paper['class_name']); ?>
-                            · <?php echo htmlspecialchars((string)$paper['paper_year']); ?>
-                        </div>
-                        <div class="small text-muted mb-2">Mapped Test: <?php echo htmlspecialchars((string)$paper['test_title']); ?></div>
-                        <div class="d-flex justify-content-between align-items-center gap-2">
-                            <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
-                                <?php if ($hasPaperAccess): ?>
-                                    <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('practice_paper_download.php?id=' . (int)$paper['id'])); ?>">Download Paper</a>
-                                <?php else: ?>
-                                    <button
-                                        type="button"
-                                        class="btn btn-outline-primary btn-sm eq-featured-add-btn"
-                                        data-item-value="practice_paper:<?php echo (int)$paper['id']; ?>"
-                                        data-item-title="<?php echo htmlspecialchars($paper['name']); ?>"
-                                        data-item-amount="<?php echo (int)amount_in_paise($paperPrice); ?>"
-                                    >
-                                        Add to Cart
-                                    </button>
-                                <?php endif; ?>
-                            <?php else: ?>
-                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
-                            <?php endif; ?>
-                            <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="small text-decoration-none fw-semibold">See details</a>
-                        </div>
-                    </article>
-                <?php endforeach; ?>
-            </div>
-        </article>
-    </div>
-
-    <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
-        <input type="hidden" id="home-payment-csrf-token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
-        <section class="eq-featured-cart" id="home-featured-cart">
-            <h4>Featured Cart</h4>
-            <p>Your cart appears only after you add a featured item from the homepage.</p>
-            <div class="eq-featured-cart-stats">
-                <div><strong id="home-featured-count">0</strong><span>Selected items</span></div>
-                <div><strong id="home-featured-total">Rs 0</strong><span>Total cart value</span></div>
-            </div>
-            <div class="eq-featured-cart-items" id="home-featured-items"></div>
-            <div class="eq-featured-cart-actions">
-                <button type="button" class="btn btn-warning fw-semibold" id="home-featured-buy">Buy Featured Items</button>
-                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-light">View Full Test Page</a>
-            </div>
-        </section>
-    <?php endif; ?>
-</section>
-<?php endif; ?>
-
 <section class="eq-home-section">
     <div class="eq-section-title">
         <h2>Student Intelligence & Readiness Assessment (SIRA) 
@@ -828,6 +685,161 @@ try {
         <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Community Learning</h6><p>Connect with peers, ask questions, and share growth milestones.</p><a href="<?php echo htmlspecialchars(url_for('community.php')); ?>">Active Community</a></div></div>
     </div>
 </section>
+
+<?php if ($hasFeaturedAssessments): ?>
+<section class="eq-featured-home-section">
+    <div class="eq-section-title">
+        <h2>Featured Assessments</h2>
+        <p>Explore high-demand tests and practice papers from the homepage, add them to cart, and continue to the full catalogue anytime.</p>
+    </div>
+
+    <?php if (!empty($_GET['purchase']) && $_GET['purchase'] === 'success'): ?>
+        <div class="alert alert-success">Purchase completed. Your featured items now reflect the latest access status.</div>
+    <?php endif; ?>
+
+    <div id="home-featured-message" class="alert d-none" role="alert"></div>
+
+    <div class="eq-featured-grid<?php echo ($hasFeaturedTests xor $hasFeaturedPracticePapers) ? ' eq-single' : ''; ?>">
+        <?php if ($hasFeaturedTests): ?>
+        <article class="eq-featured-panel">
+            <div class="eq-featured-head d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h3>Featured Tests</h3>
+                    <p>Timed assessments you can secure now and start from the full tests page.</p>
+                </div>
+                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-primary btn-sm">View More</a>
+            </div>
+            <div class="eq-featured-list">
+                <?php foreach ($featuredTests as $test): ?>
+                    <?php
+                        $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
+                        $statusLabel = 'Open';
+                        $statusClass = 'text-bg-success';
+                        $canAttempt = true;
+                        if ($startAt && $homeNowUtc < $startAt) {
+                            $statusLabel = 'Upcoming';
+                            $statusClass = 'text-bg-warning';
+                            $canAttempt = false;
+                        }
+                        $testPrice = (float)($test['price_inr'] ?? 0);
+                        $isPurchased = !empty($featuredPaidTestsPurchased[(int)$test['id']]);
+                    ?>
+                    <article class="eq-featured-card">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <h4><?php echo htmlspecialchars($test['title']); ?></h4>
+                            <div class="d-flex flex-column align-items-end gap-2">
+                                <span class="badge <?php echo $statusClass; ?>"><?php echo $statusLabel; ?></span>
+                                <span class="badge text-bg-primary">Featured</span>
+                            </div>
+                        </div>
+                        <p><?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 120, '...')); ?></p>
+                        <div class="eq-featured-meta">
+                            <strong><?php echo htmlspecialchars(test_price_label($testPrice)); ?></strong>
+                            · <?php echo (int)$test['duration_minutes']; ?> min
+                            · <?php echo (int)$test['total_marks']; ?> marks
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
+                                <?php if ($isPurchased): ?>
+                                    <?php if ($canAttempt): ?>
+                                        <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>">Start Test</a>
+                                    <?php else: ?>
+                                        <button class="btn btn-outline-secondary btn-sm" disabled>Purchased - starts later</button>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary btn-sm eq-featured-add-btn"
+                                        data-item-value="test:<?php echo (int)$test['id']; ?>"
+                                        data-item-title="<?php echo htmlspecialchars($test['title']); ?>"
+                                        data-item-amount="<?php echo (int)amount_in_paise($testPrice); ?>"
+                                    >
+                                        Add to Cart
+                                    </button>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
+                            <?php endif; ?>
+                            <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="small text-decoration-none fw-semibold">See details</a>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        </article>
+        <?php endif; ?>
+
+        <?php if ($hasFeaturedPracticePapers): ?>
+        <article class="eq-featured-panel">
+            <div class="eq-featured-head d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h3>Featured Practice Papers</h3>
+                    <p>Downloadable revision papers linked to high-interest assessments and exam years.</p>
+                </div>
+                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-primary btn-sm">View More</a>
+            </div>
+            <div class="eq-featured-list">
+                <?php foreach ($featuredPracticePapers as $paper): ?>
+                    <?php
+                        $paperPrice = (float)($paper['amount_inr'] ?? 0);
+                        $hasPaperAccess = !empty($featuredPaidPapersPurchased[(int)$paper['id']]);
+                    ?>
+                    <article class="eq-featured-card">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <h4><?php echo htmlspecialchars($paper['name']); ?></h4>
+                            <span class="badge text-bg-primary">Featured</span>
+                        </div>
+                        <p><?php echo htmlspecialchars(text_preview(strip_tags((string)$paper['description']), 120, '...')); ?></p>
+                        <div class="eq-featured-meta">
+                            <strong><?php echo htmlspecialchars(test_price_label($paperPrice)); ?></strong>
+                            · <?php echo htmlspecialchars((string)$paper['class_name']); ?>
+                            · <?php echo htmlspecialchars((string)$paper['paper_year']); ?>
+                        </div>
+                        <div class="small text-muted mb-2">Mapped Test: <?php echo htmlspecialchars((string)$paper['test_title']); ?></div>
+                        <div class="d-flex justify-content-between align-items-center gap-2">
+                            <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
+                                <?php if ($hasPaperAccess): ?>
+                                    <a class="btn btn-primary btn-sm" href="<?php echo htmlspecialchars(url_for('practice_paper_download.php?id=' . (int)$paper['id'])); ?>">Download Paper</a>
+                                <?php else: ?>
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline-primary btn-sm eq-featured-add-btn"
+                                        data-item-value="practice_paper:<?php echo (int)$paper['id']; ?>"
+                                        data-item-title="<?php echo htmlspecialchars($paper['name']); ?>"
+                                        data-item-amount="<?php echo (int)amount_in_paise($paperPrice); ?>"
+                                    >
+                                        Add to Cart
+                                    </button>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
+                            <?php endif; ?>
+                            <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="small text-decoration-none fw-semibold">See details</a>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+        </article>
+        <?php endif; ?>
+    </div>
+
+    <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
+        <input type="hidden" id="home-payment-csrf-token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+        <section class="eq-featured-cart" id="home-featured-cart">
+            <h4>Featured Cart</h4>
+            <p>Your cart appears only after you add a featured item from the homepage.</p>
+            <div class="eq-featured-cart-stats">
+                <div><strong id="home-featured-count">0</strong><span>Selected items</span></div>
+                <div><strong id="home-featured-total">Rs 0</strong><span>Total cart value</span></div>
+            </div>
+            <div class="eq-featured-cart-items" id="home-featured-items"></div>
+            <div class="eq-featured-cart-actions">
+                <button type="button" class="btn btn-warning fw-semibold" id="home-featured-buy">Buy Featured Items</button>
+                <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="btn btn-outline-light">View Full Test Page</a>
+            </div>
+        </section>
+    <?php endif; ?>
+</section>
+<?php endif; ?>
 
 <section class="eq-home-gradient-zone">
     <div class="eq-home-section">

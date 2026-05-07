@@ -24,6 +24,7 @@ if ($authUser) {
     if ($testHasActiveColumn) {
         $testWhere[] = 't.is_active = 1';
     }
+    $testWhere[] = '(t.end_at IS NULL OR t.end_at >= UTC_TIMESTAMP())';
     if ($authUser['role'] === 'student' && $testHasGradeColumn && $studentGrade !== '') {
         $testWhere[] = "(t.target_grade = " . $pdo->quote($studentGrade) . " OR t.target_grade IS NULL OR t.target_grade = '')";
     }
@@ -41,11 +42,15 @@ if ($authUser) {
         $paperActiveClause = table_has_column($pdo, 'practice_papers', 'is_active')
             ? 'pp.is_active = 1'
             : 'pp.status = "published"';
+        $paperTestVisibilityClause = ' AND (t.end_at IS NULL OR t.end_at >= UTC_TIMESTAMP())';
+        if ($testHasActiveColumn) {
+            $paperTestVisibilityClause .= ' AND t.is_active = 1';
+        }
         $practicePapers = $pdo->query(
             'SELECT pp.*, t.title AS test_title
              FROM practice_papers pp
              JOIN tests t ON t.id = pp.test_id
-             WHERE ' . $paperActiveClause . '
+             WHERE ' . $paperActiveClause . $paperTestVisibilityClause . '
              ORDER BY pp.created_at DESC, pp.id DESC'
         )->fetchAll();
     }
