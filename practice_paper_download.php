@@ -16,16 +16,21 @@ if (!practice_paper_table_exists($pdo)) {
     header('Location: ' . url_for('tests.php'));
     exit;
 }
+$paperActiveColumn = table_has_column($pdo, 'practice_papers', 'is_active');
 
 $stmt = $pdo->prepare(
-    'SELECT id, name, access_type, amount_inr, pdf_file_path
+    'SELECT id, name, access_type, amount_inr, pdf_file_path' . ($paperActiveColumn ? ', is_active' : ', status') . '
      FROM practice_papers
-     WHERE id = ? AND status = "published"
+     WHERE id = ?
      LIMIT 1'
 );
 $stmt->execute([$paperId]);
 $paper = $stmt->fetch();
 if (!$paper) {
+    header('Location: ' . url_for('tests.php'));
+    exit;
+}
+if (($paperActiveColumn && empty($paper['is_active'])) || (!$paperActiveColumn && (string)($paper['status'] ?? '') !== 'published')) {
     header('Location: ' . url_for('tests.php'));
     exit;
 }

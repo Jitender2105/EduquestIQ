@@ -5,11 +5,13 @@ require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
+$videosActiveClause = table_has_column($pdo, 'video_lectures', 'is_active') ? 'WHERE vl.is_active = 1' : '';
 
 $stmt = $pdo->query(
     'SELECT vl.id, vl.title, vl.video_url, vl.duration, c.title AS course_title
      FROM video_lectures vl
      LEFT JOIN courses c ON vl.course_id = c.id
+     ' . $videosActiveClause . '
      ORDER BY c.title ASC, vl.sequence_order ASC'
 );
 $videos = $stmt->fetchAll();

@@ -5,6 +5,7 @@ require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
+$materialsActiveClause = table_has_column($pdo, 'study_materials', 'is_active') ? 'AND sm.is_active = 1' : '';
 
 $stmt = $pdo->query(
     "SELECT sm.id, sm.title, sm.file_path, sm.material_type, sm.uploaded_at,
@@ -12,6 +13,7 @@ $stmt = $pdo->query(
      FROM study_materials sm
      LEFT JOIN courses c ON sm.course_id = c.id
      WHERE sm.material_type IN ('pdf','doc','ppt')
+       $materialsActiveClause
      ORDER BY sm.uploaded_at DESC"
 );
 $materials = $stmt->fetchAll();

@@ -173,6 +173,8 @@ CREATE TABLE tests (
   description TEXT,
   instruction TEXT,
   test_year VARCHAR(20) NULL,
+  target_grade VARCHAR(40) NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
   start_at DATETIME NULL,
   end_at DATETIME NULL,
   price_inr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -214,6 +216,7 @@ CREATE TABLE practice_papers (
   access_type ENUM('free','paid') NOT NULL DEFAULT 'free',
   amount_inr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   pdf_file_path VARCHAR(255) NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
   status ENUM('draft','published','archived') NOT NULL DEFAULT 'published',
   created_by INT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -282,6 +285,7 @@ CREATE TABLE courses (
   description TEXT,
   teacher_id INT,
   attribute_id INT,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_courses_teacher FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_courses_attribute FOREIGN KEY (attribute_id) REFERENCES attributes(id) ON DELETE SET NULL
@@ -304,6 +308,7 @@ CREATE TABLE video_lectures (
   video_url VARCHAR(255),
   duration INT,
   sequence_order INT,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
   CONSTRAINT fk_vlec_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -313,6 +318,7 @@ CREATE TABLE study_materials (
   title VARCHAR(150),
   file_path VARCHAR(255),
   material_type ENUM('pdf','doc','ppt','link'),
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
   uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_smat_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -403,7 +409,8 @@ CREATE TABLE user_achievements (
 CREATE TABLE learning_paths (
   id INT PRIMARY KEY AUTO_INCREMENT,
   title VARCHAR(150),
-  description TEXT
+  description TEXT,
+  is_active TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE path_courses (
@@ -425,6 +432,7 @@ CREATE TABLE articles (
   school_id INT NULL,
   article_type ENUM('generic','school','contest','news') NOT NULL DEFAULT 'generic',
   image_path VARCHAR(255) NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

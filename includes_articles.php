@@ -36,6 +36,11 @@ function article_table_exists(PDO $pdo, string $table): bool
     return (bool)$stmt->fetchColumn();
 }
 
+function article_active_clause(PDO $pdo, string $alias = 'a'): string
+{
+    return table_has_column($pdo, 'articles', 'is_active') ? $alias . '.is_active = 1' : '1=1';
+}
+
 function article_upload_image(array $file): string
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
@@ -120,4 +125,3 @@ function article_slug_exists(PDO $pdo, string $slug, ?int $ignoreId = null): boo
 
     return (bool)$stmt->fetchColumn();
 }
-

@@ -5,11 +5,14 @@ require_once __DIR__ . '/includes_header.php';
 require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
+$pathsActiveClause = table_has_column($pdo, 'learning_paths', 'is_active') ? 'WHERE lp.is_active = 1' : '';
+$coursesActiveClause = table_has_column($pdo, 'courses', 'is_active') ? 'AND c.is_active = 1' : '';
 
 // Load all learning paths with their courses
 $pathsStmt = $pdo->query(
     'SELECT lp.id, lp.title, lp.description
      FROM learning_paths lp
+     ' . $pathsActiveClause . '
      ORDER BY lp.id ASC'
 );
 $paths = $pathsStmt->fetchAll();
@@ -23,6 +26,7 @@ if ($paths) {
          FROM path_courses pc
          JOIN courses c ON pc.course_id = c.id
          WHERE pc.path_id IN ($in)
+         $coursesActiveClause
          ORDER BY pc.path_id ASC, pc.sequence_order ASC"
     );
     $stmt->execute($pathIds);

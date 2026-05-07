@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes_csrf.php';
 require_once __DIR__ . '/includes_fallback.php';
 
 $pdo = get_pdo();
+$coursesActiveClause = table_has_column($pdo, 'courses', 'is_active') ? 'WHERE c.is_active = 1' : '';
 
 $stmt = $pdo->query(
     'SELECT c.id, c.title, c.description, c.created_at,
@@ -14,6 +15,7 @@ $stmt = $pdo->query(
      FROM courses c
      LEFT JOIN users u ON c.teacher_id = u.id
      LEFT JOIN attributes a ON c.attribute_id = a.id
+     ' . $coursesActiveClause . '
      ORDER BY c.created_at DESC'
 );
 $courses = $stmt->fetchAll();

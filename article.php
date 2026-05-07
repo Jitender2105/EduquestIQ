@@ -14,12 +14,14 @@ $similarArticles = [];
 $latestArticles = [];
 
 if ($slug !== '' && article_table_exists($pdo, 'articles')) {
+    $articleVisibility = article_active_clause($pdo, 'a');
     $stmt = $pdo->prepare(
         'SELECT a.*, s.name AS school_name, s.city AS school_city, s.state AS school_state, u.name AS creator_name
          FROM articles a
          JOIN users u ON u.id = a.created_by
          LEFT JOIN schools s ON s.id = a.school_id
          WHERE a.slug = ?
+           AND ' . $articleVisibility . '
          LIMIT 1'
     );
     $stmt->execute([$slug]);
@@ -39,6 +41,7 @@ if ($slug !== '' && article_table_exists($pdo, 'articles')) {
             'SELECT id, title, slug, image_path, article_type, created_at
              FROM articles
              WHERE id <> ?
+               AND ' . article_active_clause($pdo, 'articles') . '
                AND (
                     article_type = ?
                     OR school_id <=> ?
@@ -52,6 +55,7 @@ if ($slug !== '' && article_table_exists($pdo, 'articles')) {
         $latestStmt = $pdo->query(
             'SELECT id, title, slug, image_path, article_type, created_at
              FROM articles
+             WHERE ' . article_active_clause($pdo, 'articles') . '
              ORDER BY created_at DESC
              LIMIT 4'
         );

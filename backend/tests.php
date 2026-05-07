@@ -5,6 +5,8 @@ require_once __DIR__ . '/bootstrap.php';
 
 $user = backend_user();
 $pdo = get_pdo();
+$testsHasActiveColumn = table_has_column($pdo, 'tests', 'is_active');
+$testsHasGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
 
 function backend_tests_local_to_utc(?string $value): ?string
 {
@@ -50,7 +52,9 @@ function backend_tests_default_bundle(): array
     return [
         'edit_id' => '',
         'access_type' => 'free',
+        'is_active' => '1',
         'title' => '',
+        'target_grade' => '',
         'description' => '',
         'instruction' => '',
         'duration_minutes' => '60',
@@ -80,7 +84,9 @@ function backend_tests_bundle_from_post(array $source): array
     $bundle = backend_tests_default_bundle();
     $bundle['edit_id'] = trim((string)($source['edit_id'] ?? ''));
     $bundle['access_type'] = (string)($source['access_type'] ?? 'free');
+    $bundle['is_active'] = (string)($source['is_active'] ?? '1');
     $bundle['title'] = trim((string)($source['title'] ?? ''));
+    $bundle['target_grade'] = trim((string)($source['target_grade'] ?? ''));
     $bundle['description'] = (string)($source['description'] ?? '');
     $bundle['instruction'] = (string)($source['instruction'] ?? '');
     $bundle['duration_minutes'] = (string)($source['duration_minutes'] ?? '60');
@@ -92,10 +98,13 @@ function backend_tests_bundle_from_post(array $source): array
     return $bundle;
 }
 
-function backend_tests_load_bundle(PDO $pdo, int $testId): ?array
+function backend_tests_load_bundle(PDO $pdo, int $testId, bool $hasGradeColumn, bool $hasActiveColumn): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, title, description, instruction, duration_minutes, price_inr, start_at, end_at, test_year
+        'SELECT id, title, description, instruction, duration_minutes, price_inr, start_at, end_at, test_year'
+        . ($hasGradeColumn ? ', target_grade' : '')
+        . ($hasActiveColumn ? ', is_active' : '')
+        . '
          FROM tests
          WHERE id = ?
          LIMIT 1'
@@ -144,7 +153,9 @@ function backend_tests_load_bundle(PDO $pdo, int $testId): ?array
     return [
         'edit_id' => (string)$test['id'],
         'access_type' => ((float)($test['price_inr'] ?? 0) > 0) ? 'paid' : 'free',
+        'is_active' => $hasActiveColumn && empty($test['is_active']) ? '0' : '1',
         'title' => (string)$test['title'],
+        'target_grade' => $hasGradeColumn ? (string)($test['target_grade'] ?? '') : '',
         'description' => (string)($test['description'] ?? ''),
         'instruction' => (string)($test['instruction'] ?? ''),
         'duration_minutes' => (string)$test['duration_minutes'],
@@ -332,7 +343,7 @@ $success = null;
 $editId = backend_is_super_admin($user) ? max(0, (int)($_GET['edit'] ?? 0)) : 0;
 
 if ($editId > 0) {
-    $loadedBundle = backend_tests_load_bundle($pdo, $editId);
+    $loadedBundle = backend_tests_load_bundle($pdo, $editId, $testsHasGradeColumn, $testsHasActiveColumn);
     if ($loadedBundle) {
         $bundle = $loadedBundle;
     } else {
@@ -385,6 +396,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($bundle['title'] === '') {
                 $errors[] = 'Test name is required.';
             }
+            if ($testsHasGradeColumn && $bundle['target_grade'] === '') {
+                $errors[] = 'Select the class for this test.';
+            }
             if (trim(strip_tags($bundle['description'])) === '') {
                 $errors[] = 'Test description is required.';
             }
@@ -398,6 +412,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($bundle['access_type'], ['free', 'paid'], true)) {
                 $errors[] = 'Select a valid access type.';
             }
+            $isActive = ($bundle['is_active'] ?? '1') === '1' ? 1 : 0;
             $priceInr = $bundle['access_type'] === 'free' ? 0.0 : (float)$bundle['price_inr'];
             if ($priceInr < 0) {
                 $errors[] = 'Price cannot be negative.';
@@ -490,10 +505,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         $stmt = $pdo->prepare(
                             'UPDATE tests
-                             SET title = ?, description = ?, instruction = ?, test_year = ?, start_at = ?, end_at = ?, total_marks = ?, duration_minutes = ?, price_inr = ?
+                             SET title = ?, description = ?, instruction = ?, test_year = ?'
+                             . ($testsHasGradeColumn ? ', target_grade = ?' : '')
+                             . ($testsHasActiveColumn ? ', is_active = ?' : '')
+                             . ', start_at = ?, end_at = ?, total_marks = ?, duration_minutes = ?, price_inr = ?
                              WHERE id = ?'
                         );
-                        $stmt->execute([
+                        $updateParams = [
                             $bundle['title'],
                             $bundle['description'] !== '' ? $bundle['description'] : null,
                             $bundle['instruction'] !== '' ? $bundle['instruction'] : null,
@@ -504,7 +522,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $durationMinutes,
                             $priceInr,
                             $postedEditId,
-                        ]);
+                        ];
+                        if ($testsHasGradeColumn) {
+                            array_splice($updateParams, 4, 0, [$bundle['target_grade']]);
+                        }
+                        if ($testsHasActiveColumn) {
+                            array_splice($updateParams, $testsHasGradeColumn ? 5 : 4, 0, [$isActive]);
+                        }
+                        $stmt->execute($updateParams);
                         $existingQuestionStmt = $pdo->prepare('SELECT question_id FROM test_questions WHERE test_id = ?');
                         $existingQuestionStmt->execute([$postedEditId]);
                         $existingQuestionIds = array_map('intval', array_column($existingQuestionStmt->fetchAll(), 'question_id'));
@@ -521,10 +546,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         $stmt = $pdo->prepare(
                             'INSERT INTO tests
-                             (title, description, instruction, test_year, start_at, end_at, created_by, total_marks, duration_minutes, price_inr, created_at)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+                             (title, description, instruction, test_year'
+                             . ($testsHasGradeColumn ? ', target_grade' : '')
+                             . ($testsHasActiveColumn ? ', is_active' : '')
+                             . ', start_at, end_at, created_by, total_marks, duration_minutes, price_inr, created_at)
+                             VALUES (?, ?, ?, ?'
+                             . ($testsHasGradeColumn ? ', ?' : '')
+                             . ($testsHasActiveColumn ? ', ?' : '')
+                             . ', ?, ?, ?, ?, ?, ?, NOW())'
                         );
-                        $stmt->execute([
+                        $insertParams = [
                             $bundle['title'],
                             $bundle['description'] !== '' ? $bundle['description'] : null,
                             $bundle['instruction'] !== '' ? $bundle['instruction'] : null,
@@ -535,7 +566,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $totalMarks,
                             $durationMinutes,
                             $priceInr,
-                        ]);
+                        ];
+                        if ($testsHasGradeColumn) {
+                            array_splice($insertParams, 4, 0, [$bundle['target_grade']]);
+                        }
+                        if ($testsHasActiveColumn) {
+                            array_splice($insertParams, $testsHasGradeColumn ? 5 : 4, 0, [$isActive]);
+                        }
+                        $stmt->execute($insertParams);
                         $testId = (int)$pdo->lastInsertId();
                     }
 
@@ -598,7 +636,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $attributes = $pdo->query('SELECT id, name FROM attributes ORDER BY name')->fetchAll();
 $subAttributes = $pdo->query('SELECT id, attribute_id, name FROM sub_attributes ORDER BY attribute_id, name')->fetchAll();
 $tests = $pdo->query(
-    'SELECT t.id, t.title, t.test_year, t.start_at, t.end_at, t.duration_minutes, t.price_inr, t.total_marks, t.created_at,
+    'SELECT t.id, t.title, t.test_year'
+        . ($testsHasGradeColumn ? ', t.target_grade' : ', "" AS target_grade')
+        . ($testsHasActiveColumn ? ', t.is_active' : ', 1 AS is_active')
+        . ', t.start_at, t.end_at, t.duration_minutes, t.price_inr, t.total_marks, t.created_at,
             COALESCE(qc.question_count, 0) AS question_count,
             COALESCE(ac.attempt_count, 0) AS attempt_count
      FROM tests t
@@ -767,6 +808,22 @@ require_once dirname(__DIR__) . '/includes_header.php';
                     <input class="form-control" name="title" required value="<?php echo htmlspecialchars($bundle['title']); ?>">
                 </div>
                 <div class="col-lg-3">
+                    <label class="form-label">Class</label>
+                    <select class="form-select" name="target_grade" required>
+                        <option value="">Select class</option>
+                        <?php foreach (['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'] as $gradeOption): ?>
+                            <option value="<?php echo htmlspecialchars($gradeOption); ?>"<?php echo ($bundle['target_grade'] ?? '') === $gradeOption ? ' selected' : ''; ?>><?php echo htmlspecialchars($gradeOption); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-lg-3">
+                    <label class="form-label">Visibility</label>
+                    <select class="form-select" name="is_active">
+                        <option value="1"<?php echo ($bundle['is_active'] ?? '1') === '1' ? ' selected' : ''; ?>>Active</option>
+                        <option value="0"<?php echo ($bundle['is_active'] ?? '1') === '0' ? ' selected' : ''; ?>>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-lg-3">
                     <label class="form-label">Test access</label>
                     <select class="form-select" name="access_type" id="test-access-type">
                         <option value="free"<?php echo ($bundle['access_type'] ?? 'free') === 'free' ? ' selected' : ''; ?>>Free</option>
@@ -843,6 +900,8 @@ require_once dirname(__DIR__) . '/includes_header.php';
                         <tr>
                             <th>ID</th>
                             <th>Name</th>
+                            <th>Class</th>
+                            <th>Status</th>
                             <th>Year</th>
                             <th>Window</th>
                             <th>Duration</th>
@@ -858,6 +917,8 @@ require_once dirname(__DIR__) . '/includes_header.php';
                             <tr>
                                 <td><?php echo (int)$test['id']; ?></td>
                                 <td><?php echo htmlspecialchars((string)$test['title']); ?></td>
+                                <td><?php echo htmlspecialchars((string)($test['target_grade'] ?? '')); ?></td>
+                                <td><span class="badge <?php echo !empty($test['is_active']) ? 'text-bg-success' : 'text-bg-secondary'; ?>"><?php echo !empty($test['is_active']) ? 'Active' : 'Inactive'; ?></span></td>
                                 <td><?php echo htmlspecialchars((string)($test['test_year'] ?? '')); ?></td>
                                 <td>
                                     <div><?php echo htmlspecialchars(backend_tests_utc_to_local_label((string)($test['start_at'] ?? ''))); ?></div>

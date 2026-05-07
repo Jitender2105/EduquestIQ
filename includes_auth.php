@@ -72,6 +72,7 @@ function login_user(array $user): void
         'name'  => $user['name'],
         'role'  => $user['role'],
         'school_id' => $user['school_id'] ?? null,
+        'grade' => $user['grade'] ?? null,
         'iss'   => JWT_ISSUER,
         'iat'   => $now,
         'nbf'   => $now,

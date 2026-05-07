@@ -227,6 +227,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
+<style>
+    .eq-school-select {
+        position: relative;
+    }
+    .eq-school-search {
+        padding-right: 42px;
+    }
+    .eq-school-toggle {
+        position: absolute;
+        top: 38px;
+        right: 12px;
+        border: 0;
+        background: transparent;
+        color: #6c757d;
+        font-size: 0.95rem;
+    }
+    .eq-school-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        right: 0;
+        z-index: 30;
+        max-height: 260px;
+        overflow: auto;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 14px 34px rgba(18, 27, 66, 0.12);
+        display: none;
+        padding: 8px;
+    }
+    .eq-school-menu.is-open {
+        display: block;
+    }
+    .eq-school-option {
+        border-radius: 10px;
+        padding: 10px 12px;
+        cursor: pointer;
+    }
+    .eq-school-option:hover,
+    .eq-school-option.is-active {
+        background: #edf3ff;
+    }
+    .eq-school-option small {
+        display: block;
+        color: #6c757d;
+    }
+</style>
+
 <div class="row justify-content-center">
     <div class="col-lg-8 col-xl-7">
         <div class="eq-page-head">
@@ -376,32 +425,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="mb-3">
                 <label class="form-label">School Name</label>
-                <input
-                    type="search"
-                    name="school_name"
-                    id="school_name"
-                    class="form-control"
-                    list="school_options"
-                    placeholder="Search and select your school"
-                    required
-                    <?php echo !$schoolsTableReady ? 'disabled' : ''; ?>
-                    value="<?php
-                        if (!empty($schoolId)) {
-                            foreach ($schools as $s) {
-                                if ((int)$s['id'] === (int)$schoolId) {
-                                    echo htmlspecialchars($s['name'] . (!empty($s['city']) ? ' - ' . $s['city'] : ''));
-                                    break;
+                <div class="eq-school-select" id="school-select">
+                    <input
+                        type="search"
+                        name="school_name"
+                        id="school_name"
+                        class="form-control eq-school-search"
+                        placeholder="Search and select your school"
+                        autocomplete="off"
+                        required
+                        <?php echo !$schoolsTableReady ? 'disabled' : ''; ?>
+                        value="<?php
+                            if (!empty($schoolId)) {
+                                foreach ($schools as $s) {
+                                    if ((int)$s['id'] === (int)$schoolId) {
+                                        echo htmlspecialchars($s['name'] . (!empty($s['city']) ? ' - ' . $s['city'] : ''));
+                                        break;
+                                    }
                                 }
                             }
-                        }
-                    ?>"
-                >
-                <input type="hidden" name="school_id" id="school_id" value="<?php echo (int)$schoolId; ?>">
-                <datalist id="school_options">
-                    <?php foreach ($schools as $school): ?>
-                        <option value="<?php echo htmlspecialchars($school['name'] . (!empty($school['city']) ? ' - ' . $school['city'] : '')); ?>" data-id="<?php echo (int)$school['id']; ?>"></option>
-                    <?php endforeach; ?>
-                </datalist>
+                        ?>"
+                    >
+                    <button type="button" class="eq-school-toggle" id="school_toggle" aria-label="Toggle school list">&#9662;</button>
+                    <div class="eq-school-menu" id="school_menu"></div>
+                </div>
+                <input type="hidden" name="school_id" id="school_id" value="<?php echo (int)$schoolId; ?>" required>
                 <div class="form-text">School list is managed from backend by school admins.</div>
             </div>
 
@@ -447,8 +495,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         const schoolNameInput = document.getElementById('school_name');
         const schoolIdInput = document.getElementById('school_id');
+        const schoolMenu = document.getElementById('school_menu');
+        const schoolToggle = document.getElementById('school_toggle');
+        const schoolSelect = document.getElementById('school-select');
         const form = document.getElementById('register-form');
-        const options = Array.from(document.querySelectorAll('#school_options option'));
+        const schools = <?php echo json_encode(array_map(static function (array $school): array {
+            return [
+                'id' => (int)$school['id'],
+                'label' => $school['name'] . (!empty($school['city']) ? ' - ' . $school['city'] : ''),
+                'meta' => trim((string)$school['city'] . (!empty($school['city']) && !empty($school['state']) ? ', ' : '') . (string)$school['state']),
+            ];
+        }, $schools), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
         function setRequired(ids, required) {
             ids.forEach(function (id) {
@@ -480,23 +537,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setRequired(adminRequired, isAdmin);
         }
 
+        function renderSchools(filter) {
+            if (!schoolMenu) {
+                return;
+            }
+            const search = String(filter || '').toLowerCase();
+            const matches = schools.filter(function (school) {
+                return school.label.toLowerCase().includes(search) || school.meta.toLowerCase().includes(search);
+            });
+            schoolMenu.innerHTML = matches.length
+                ? matches.map(function (school) {
+                    const active = String(school.id) === String(schoolIdInput.value) ? ' is-active' : '';
+                    return '<div class="eq-school-option' + active + '" data-school-id="' + school.id + '" data-school-label="' + school.label.replace(/"/g, '&quot;') + '"><strong>' + school.label + '</strong><small>' + (school.meta || 'School') + '</small></div>';
+                }).join('')
+                : '<div class="eq-school-option"><small>No schools found</small></div>';
+        }
+
+        function openSchoolMenu() {
+            if (!schoolMenu) {
+                return;
+            }
+            renderSchools(schoolNameInput.value.trim());
+            schoolMenu.classList.add('is-open');
+        }
+
+        function closeSchoolMenu() {
+            if (schoolMenu) {
+                schoolMenu.classList.remove('is-open');
+            }
+        }
+
         function syncSchoolId() {
             if (!schoolNameInput || !schoolIdInput) {
                 return;
             }
             const value = schoolNameInput.value.trim();
-            const match = options.find((opt) => opt.value === value);
-            schoolIdInput.value = match ? (match.dataset.id || '') : '';
+            const match = schools.find(function (school) {
+                return school.label === value;
+            });
+            schoolIdInput.value = match ? String(match.id) : '';
         }
 
         roleSelect.addEventListener('change', toggleRoleFields);
         toggleRoleFields();
 
         if (schoolNameInput && schoolIdInput) {
-            schoolNameInput.addEventListener('input', syncSchoolId);
-            schoolNameInput.addEventListener('change', syncSchoolId);
-            schoolNameInput.addEventListener('blur', syncSchoolId);
-            form.addEventListener('submit', syncSchoolId);
+            schoolNameInput.addEventListener('focus', openSchoolMenu);
+            schoolNameInput.addEventListener('input', function () {
+                syncSchoolId();
+                openSchoolMenu();
+            });
+            schoolToggle.addEventListener('click', function () {
+                if (schoolMenu.classList.contains('is-open')) {
+                    closeSchoolMenu();
+                } else {
+                    openSchoolMenu();
+                }
+            });
+            schoolMenu.addEventListener('click', function (event) {
+                const option = event.target.closest('.eq-school-option[data-school-id]');
+                if (!option) {
+                    return;
+                }
+                schoolNameInput.value = option.dataset.schoolLabel || '';
+                schoolIdInput.value = option.dataset.schoolId || '';
+                closeSchoolMenu();
+            });
+            document.addEventListener('click', function (event) {
+                if (!schoolSelect.contains(event.target)) {
+                    closeSchoolMenu();
+                }
+            });
+            form.addEventListener('submit', function () {
+                syncSchoolId();
+            });
         }
     })();
 </script>

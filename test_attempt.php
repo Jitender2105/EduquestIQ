@@ -14,9 +14,16 @@ if ($testId <= 0) {
 }
 
 $pdo = get_pdo();
+$testHasActiveColumn = table_has_column($pdo, 'tests', 'is_active');
+$testHasGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
+$studentGradeStmt = $pdo->prepare('SELECT grade FROM users WHERE id = ? LIMIT 1');
+$studentGradeStmt->execute([(int)$user['sub']]);
+$studentGrade = trim((string)$studentGradeStmt->fetchColumn());
 
 $stmt = $pdo->prepare(
-    'SELECT id, title, description, instruction, test_year, start_at, end_at, total_marks, duration_minutes, price_inr
+    'SELECT id, title, description, instruction, test_year, start_at, end_at, total_marks, duration_minutes, price_inr'
+    . ($testHasGradeColumn ? ', target_grade' : '')
+    . ($testHasActiveColumn ? ', is_active' : '') . '
      FROM tests
      WHERE id = ?'
 );
@@ -24,6 +31,12 @@ $stmt->execute([$testId]);
 $test = $stmt->fetch();
 
 if (!$test) {
+    header('Location: ' . url_for('tests.php'));
+    exit;
+}
+
+if (($testHasActiveColumn && empty($test['is_active']))
+    || ($testHasGradeColumn && $studentGrade !== '' && !empty($test['target_grade']) && (string)$test['target_grade'] !== $studentGrade)) {
     header('Location: ' . url_for('tests.php'));
     exit;
 }

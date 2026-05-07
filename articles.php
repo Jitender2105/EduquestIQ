@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes_fallback.php';
 require_once __DIR__ . '/includes_articles.php';
 
 $pdo = get_pdo();
+$articleVisibility = article_active_clause($pdo, 'a');
 $articles = article_table_exists($pdo, 'articles')
     ? $pdo->query(
         'SELECT a.id, a.title, a.slug, a.content_html, a.article_type, a.image_path, a.created_at,
@@ -13,6 +14,7 @@ $articles = article_table_exists($pdo, 'articles')
          FROM articles a
          JOIN users u ON u.id = a.created_by
          LEFT JOIN schools s ON s.id = a.school_id
+         WHERE ' . $articleVisibility . '
          ORDER BY a.created_at DESC'
     )->fetchAll()
     : [];

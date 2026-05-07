@@ -53,6 +53,12 @@ if ($receipt === '') {
 try {
     $pdo = get_pdo();
     $studentId = (int)$user['sub'];
+    $studentGradeStmt = $pdo->prepare('SELECT grade FROM users WHERE id = ? LIMIT 1');
+    $studentGradeStmt->execute([$studentId]);
+    $studentGrade = trim((string)$studentGradeStmt->fetchColumn());
+    $testsHaveActiveColumn = table_has_column($pdo, 'tests', 'is_active');
+    $testsHaveGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
+    $papersHaveActiveColumn = practice_paper_table_exists($pdo) && table_has_column($pdo, 'practice_papers', 'is_active');
     $notes = [
         'student_id' => (string)$user['sub'],
         'student_email' => (string)$user['email'],
@@ -78,11 +84,20 @@ try {
             }
 
             if ($type === 'test') {
-                $stmt = $pdo->prepare('SELECT id, title, price_inr FROM tests WHERE id = ? LIMIT 1');
+                $stmt = $pdo->prepare(
+                    'SELECT id, title, price_inr'
+                    . ($testsHaveActiveColumn ? ', is_active' : '')
+                    . ($testsHaveGradeColumn ? ', target_grade' : '')
+                    . ' FROM tests WHERE id = ? LIMIT 1'
+                );
                 $stmt->execute([$id]);
                 $test = $stmt->fetch();
                 if (!$test) {
                     api_json_response(400, ['success' => false, 'error' => 'Invalid test selected.']);
+                }
+                if (($testsHaveActiveColumn && empty($test['is_active']))
+                    || ($testsHaveGradeColumn && $studentGrade !== '' && !empty($test['target_grade']) && (string)$test['target_grade'] !== $studentGrade)) {
+                    api_json_response(400, ['success' => false, 'error' => 'This test is not available for your class.']);
                 }
                 if (test_purchase_is_paid($pdo, $id, $studentId)) {
                     continue;
@@ -102,11 +117,19 @@ try {
                 if (!practice_paper_table_exists($pdo)) {
                     api_json_response(400, ['success' => false, 'error' => 'Practice papers are not configured yet.']);
                 }
-                $stmt = $pdo->prepare('SELECT id, name, amount_inr, access_type FROM practice_papers WHERE id = ? AND status = "published" LIMIT 1');
+                $stmt = $pdo->prepare(
+                    'SELECT id, name, amount_inr, access_type'
+                    . ($papersHaveActiveColumn ? ', is_active' : ', status')
+                    . ' FROM practice_papers WHERE id = ? LIMIT 1'
+                );
                 $stmt->execute([$id]);
                 $paper = $stmt->fetch();
                 if (!$paper) {
                     api_json_response(400, ['success' => false, 'error' => 'Invalid practice paper selected.']);
+                }
+                if (($papersHaveActiveColumn && empty($paper['is_active']))
+                    || (!$papersHaveActiveColumn && (string)($paper['status'] ?? '') !== 'published')) {
+                    api_json_response(400, ['success' => false, 'error' => 'This practice paper is not active.']);
                 }
                 if (practice_paper_purchase_is_paid($pdo, $id, $studentId)) {
                     continue;
@@ -142,11 +165,20 @@ try {
         $notes['item_count'] = (string)count($purchaseItems);
         $notes['purchase_summary'] = 'EduquestIQ bulk catalogue purchase';
     } elseif ($testId > 0) {
-        $stmt = $pdo->prepare('SELECT id, title, price_inr FROM tests WHERE id = ? LIMIT 1');
+        $stmt = $pdo->prepare(
+            'SELECT id, title, price_inr'
+            . ($testsHaveActiveColumn ? ', is_active' : '')
+            . ($testsHaveGradeColumn ? ', target_grade' : '')
+            . ' FROM tests WHERE id = ? LIMIT 1'
+        );
         $stmt->execute([$testId]);
         $test = $stmt->fetch();
         if (!$test) {
             api_json_response(400, ['success' => false, 'error' => 'Invalid test.']);
+        }
+        if (($testsHaveActiveColumn && empty($test['is_active']))
+            || ($testsHaveGradeColumn && $studentGrade !== '' && !empty($test['target_grade']) && (string)$test['target_grade'] !== $studentGrade)) {
+            api_json_response(400, ['success' => false, 'error' => 'This test is not available for your class.']);
         }
 
         $serverAmountPaise = amount_in_paise(max(0.0, (float)($test['price_inr'] ?? 0)));

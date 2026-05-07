@@ -136,6 +136,22 @@ function get_pdo(): PDO
     return $pdo;
 }
 
+if (!function_exists('table_has_column')) {
+    function table_has_column(PDO $pdo, string $table, string $column): bool
+    {
+        $stmt = $pdo->prepare(
+            'SELECT 1
+             FROM information_schema.columns
+             WHERE table_schema = DATABASE()
+               AND table_name = ?
+               AND column_name = ?
+             LIMIT 1'
+        );
+        $stmt->execute([$table, $column]);
+        return (bool)$stmt->fetchColumn();
+    }
+}
+
 /**
  * Helper to build absolute URL paths.
  */

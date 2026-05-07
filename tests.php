@@ -7,25 +7,45 @@ require_once __DIR__ . '/includes_fallback.php';
 require_once __DIR__ . '/includes_payments.php';
 
 $pdo = get_pdo();
+$testHasActiveColumn = table_has_column($pdo, 'tests', 'is_active');
+$testHasGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
+$studentGrade = '';
 
 $tests = [];
 $practicePapers = [];
 if ($authUser) {
+    if ($authUser['role'] === 'student') {
+        $gradeStmt = $pdo->prepare('SELECT grade FROM users WHERE id = ? LIMIT 1');
+        $gradeStmt->execute([(int)$authUser['sub']]);
+        $studentGrade = trim((string)$gradeStmt->fetchColumn());
+    }
+
+    $testWhere = [];
+    if ($testHasActiveColumn) {
+        $testWhere[] = 't.is_active = 1';
+    }
+    if ($authUser['role'] === 'student' && $testHasGradeColumn && $studentGrade !== '') {
+        $testWhere[] = "(t.target_grade = " . $pdo->quote($studentGrade) . " OR t.target_grade IS NULL OR t.target_grade = '')";
+    }
     $stmt = $pdo->query(
         'SELECT t.id, t.title, t.description, t.start_at, t.end_at, t.total_marks, t.duration_minutes, t.price_inr, t.created_at,
                 u.name AS teacher_name
          FROM tests t
          LEFT JOIN users u ON t.created_by = u.id
+         ' . ($testWhere ? 'WHERE ' . implode(' AND ', $testWhere) : '') . '
          ORDER BY t.created_at DESC'
     );
     $tests = $stmt->fetchAll();
 
     if (practice_paper_table_exists($pdo)) {
+        $paperActiveClause = table_has_column($pdo, 'practice_papers', 'is_active')
+            ? 'pp.is_active = 1'
+            : 'pp.status = "published"';
         $practicePapers = $pdo->query(
             'SELECT pp.*, t.title AS test_title
              FROM practice_papers pp
              JOIN tests t ON t.id = pp.test_id
-             WHERE pp.status = "published"
+             WHERE ' . $paperActiveClause . '
              ORDER BY pp.created_at DESC, pp.id DESC'
         )->fetchAll();
     }

@@ -19,6 +19,7 @@ $contentUsers = $pdo->query(
 
 $errors = [];
 $success = null;
+$articleActiveColumn = table_has_column($pdo, 'articles', 'is_active');
 $editId = backend_is_super_admin($user) ? max(0, (int)($_GET['edit'] ?? 0)) : 0;
 $faqFormRows = [['question' => '', 'answer' => '']];
 $form = [
@@ -29,11 +30,12 @@ $form = [
     'article_type' => 'generic',
     'created_by' => (string)$user['sub'],
     'image_path' => '',
+    'is_active' => '1',
 ];
 
 if ($editId > 0) {
     $stmt = $pdo->prepare(
-        'SELECT id, title, content_html, school_id, article_type, created_by, image_path
+        'SELECT id, title, content_html, school_id, article_type, created_by, image_path' . ($articleActiveColumn ? ', is_active' : '') . '
          FROM articles
          WHERE id = ?
          LIMIT 1'
@@ -49,6 +51,7 @@ if ($editId > 0) {
             'article_type' => (string)$editingArticle['article_type'],
             'created_by' => (string)$editingArticle['created_by'],
             'image_path' => (string)($editingArticle['image_path'] ?? ''),
+            'is_active' => $articleActiveColumn && empty($editingArticle['is_active']) ? '0' : '1',
         ];
         $faqStmt = $pdo->prepare('SELECT question, answer FROM article_faqs WHERE article_id = ? ORDER BY sequence_order ASC, id ASC');
         $faqStmt->execute([$editId]);
@@ -68,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form['school_id'] = trim((string)($_POST['school_id'] ?? ''));
         $form['article_type'] = (string)($_POST['article_type'] ?? 'generic');
         $form['created_by'] = (string)($_POST['created_by'] ?? $user['sub']);
+        $form['is_active'] = (string)($_POST['is_active'] ?? '1');
         $form['edit_id'] = $postedEditId > 0 ? (string)$postedEditId : '';
         $slug = '';
         $faqQuestions = $_POST['faq_question'] ?? [];
@@ -131,39 +135,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($imagePath === null) {
                     $imagePath = $form['image_path'] !== '' ? $form['image_path'] : null;
                 }
-                $stmt = $pdo->prepare(
-                    'UPDATE articles
-                     SET title = ?, slug = ?, content_html = ?, school_id = ?, article_type = ?, image_path = ?, created_by = ?
-                     WHERE id = ?'
-                );
-                $stmt->execute([
-                    $form['title'],
-                    $slug,
-                    $form['content_html'],
-                    $schoolId,
-                    $form['article_type'],
-                    $imagePath,
-                    $createdBy,
-                    $postedEditId,
-                ]);
+                if ($articleActiveColumn) {
+                    $stmt = $pdo->prepare(
+                        'UPDATE articles
+                         SET title = ?, slug = ?, content_html = ?, school_id = ?, article_type = ?, image_path = ?, created_by = ?, is_active = ?
+                         WHERE id = ?'
+                    );
+                    $stmt->execute([
+                        $form['title'],
+                        $slug,
+                        $form['content_html'],
+                        $schoolId,
+                        $form['article_type'],
+                        $imagePath,
+                        $createdBy,
+                        ($form['is_active'] ?? '1') === '1' ? 1 : 0,
+                        $postedEditId,
+                    ]);
+                } else {
+                    $stmt = $pdo->prepare(
+                        'UPDATE articles
+                         SET title = ?, slug = ?, content_html = ?, school_id = ?, article_type = ?, image_path = ?, created_by = ?
+                         WHERE id = ?'
+                    );
+                    $stmt->execute([
+                        $form['title'],
+                        $slug,
+                        $form['content_html'],
+                        $schoolId,
+                        $form['article_type'],
+                        $imagePath,
+                        $createdBy,
+                        $postedEditId,
+                    ]);
+                }
                 $articleId = $postedEditId;
                 $pdo->prepare('DELETE FROM article_faqs WHERE article_id = ?')->execute([$articleId]);
                 $success = 'Article updated: /articles/' . $slug;
             } else {
                 $slug = article_unique_slug($pdo, $form['title']);
-                $stmt = $pdo->prepare(
-                    'INSERT INTO articles (title, slug, content_html, school_id, article_type, image_path, created_by)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)'
-                );
-                $stmt->execute([
-                    $form['title'],
-                    $slug,
-                    $form['content_html'],
-                    $schoolId,
-                    $form['article_type'],
-                    $imagePath,
-                    $createdBy,
-                ]);
+                if ($articleActiveColumn) {
+                    $stmt = $pdo->prepare(
+                        'INSERT INTO articles (title, slug, content_html, school_id, article_type, image_path, created_by, is_active)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $stmt->execute([
+                        $form['title'],
+                        $slug,
+                        $form['content_html'],
+                        $schoolId,
+                        $form['article_type'],
+                        $imagePath,
+                        $createdBy,
+                        ($form['is_active'] ?? '1') === '1' ? 1 : 0,
+                    ]);
+                } else {
+                    $stmt = $pdo->prepare(
+                        'INSERT INTO articles (title, slug, content_html, school_id, article_type, image_path, created_by)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    );
+                    $stmt->execute([
+                        $form['title'],
+                        $slug,
+                        $form['content_html'],
+                        $schoolId,
+                        $form['article_type'],
+                        $imagePath,
+                        $createdBy,
+                    ]);
+                }
                 $articleId = (int)$pdo->lastInsertId();
                 $success = 'Article saved and public slug created: /articles/' . $slug;
             }
@@ -192,6 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'article_type' => 'generic',
                 'created_by' => (string)$user['sub'],
                 'image_path' => '',
+                'is_active' => '1',
             ];
             $faqFormRows = [['question' => '', 'answer' => '']];
         } catch (Throwable $e) {
@@ -202,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $recentArticles = article_table_exists($pdo, 'articles')
     ? $pdo->query(
-        'SELECT a.id, a.title, a.slug, a.article_type, a.created_at, a.image_path,
+        'SELECT a.id, a.title, a.slug, a.article_type, a.created_at, a.image_path, ' . ($articleActiveColumn ? 'a.is_active' : '1 AS is_active') . ',
                 s.name AS school_name, u.name AS creator_name
          FROM articles a
          JOIN users u ON u.id = a.created_by
@@ -283,6 +324,13 @@ require_once dirname(__DIR__) . '/includes_header.php';
                                 <?php foreach (['generic' => 'Generic', 'school' => 'School', 'contest' => 'Contest', 'news' => 'News'] as $value => $label): ?>
                                     <option value="<?php echo htmlspecialchars($value); ?>" <?php echo $form['article_type'] === $value ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
                                 <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="form-label">Visibility</label>
+                            <select class="form-select" name="is_active">
+                                <option value="1"<?php echo ($form['is_active'] ?? '1') === '1' ? ' selected' : ''; ?>>Active</option>
+                                <option value="0"<?php echo ($form['is_active'] ?? '1') === '0' ? ' selected' : ''; ?>>Inactive</option>
                             </select>
                         </div>
                     </div>
@@ -380,7 +428,10 @@ require_once dirname(__DIR__) . '/includes_header.php';
                                     <div class="flex-grow-1">
                                         <div class="d-flex justify-content-between gap-2">
                                             <strong><?php echo htmlspecialchars($article['title']); ?></strong>
-                                            <span class="badge text-bg-light border text-capitalize"><?php echo htmlspecialchars((string)$article['article_type']); ?></span>
+                                            <div class="d-flex gap-2 flex-wrap justify-content-end">
+                                                <span class="badge text-bg-light border text-capitalize"><?php echo htmlspecialchars((string)$article['article_type']); ?></span>
+                                                <span class="badge <?php echo !empty($article['is_active']) ? 'text-bg-success' : 'text-bg-secondary'; ?>"><?php echo !empty($article['is_active']) ? 'Active' : 'Inactive'; ?></span>
+                                            </div>
                                         </div>
                                         <div class="small text-muted">
                                             <?php echo htmlspecialchars((string)$article['creator_name']); ?>

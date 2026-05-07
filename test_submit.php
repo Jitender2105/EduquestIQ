@@ -28,17 +28,31 @@ if ($testId <= 0) {
 }
 
 $pdo = get_pdo();
+$testHasActiveColumn = table_has_column($pdo, 'tests', 'is_active');
+$testHasGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
+$studentGradeStmt = $pdo->prepare('SELECT grade FROM users WHERE id = ? LIMIT 1');
+$studentGradeStmt->execute([(int)$user['sub']]);
+$studentGrade = trim((string)$studentGradeStmt->fetchColumn());
 
 try {
     $pdo->beginTransaction();
 
     // Ensure test exists
     $stmt = $pdo->prepare(
-        'SELECT id, total_marks, start_at, end_at, price_inr FROM tests WHERE id = ?'
+        'SELECT id, total_marks, start_at, end_at, price_inr'
+        . ($testHasGradeColumn ? ', target_grade' : '')
+        . ($testHasActiveColumn ? ', is_active' : '')
+        . ' FROM tests WHERE id = ?'
     );
     $stmt->execute([$testId]);
     $test = $stmt->fetch();
     if (!$test) {
+        $pdo->rollBack();
+        header('Location: ' . url_for('tests.php'));
+        exit;
+    }
+    if (($testHasActiveColumn && empty($test['is_active']))
+        || ($testHasGradeColumn && $studentGrade !== '' && !empty($test['target_grade']) && (string)$test['target_grade'] !== $studentGrade)) {
         $pdo->rollBack();
         header('Location: ' . url_for('tests.php'));
         exit;
