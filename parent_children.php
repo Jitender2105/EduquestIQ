@@ -12,9 +12,14 @@ $success = null;
 $tableReady = false;
 
 try {
-    $stmt = $pdo->prepare('SHOW TABLES LIKE ?');
-    $stmt->execute(['parent_student_links']);
-    $tableReady = (bool)$stmt->fetchColumn();
+    $stmt = $pdo->query(
+        "SELECT 1
+         FROM information_schema.tables
+         WHERE table_schema = DATABASE()
+           AND table_name = 'parent_student_links'
+         LIMIT 1"
+    );
+    $tableReady = $stmt ? (bool)$stmt->fetchColumn() : false;
 } catch (Throwable $e) {
     $tableReady = false;
 }

@@ -35,9 +35,15 @@ function table_exists(PDO $pdo, string $table): bool
         return $cache[$table];
     }
 
-    $stmt = $pdo->prepare('SHOW TABLES LIKE ?');
-    $stmt->execute([$table]);
-    $cache[$table] = (bool)$stmt->fetchColumn();
+    $quotedTable = $pdo->quote($table);
+    $stmt = $pdo->query(
+        'SELECT 1
+         FROM information_schema.tables
+         WHERE table_schema = DATABASE()
+           AND table_name = ' . $quotedTable . '
+         LIMIT 1'
+    );
+    $cache[$table] = $stmt ? (bool)$stmt->fetchColumn() : false;
     return $cache[$table];
 }
 
