@@ -602,7 +602,7 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
                     </select>
                     <div class="text-white-50 small mt-1">Search and choose one or more exams.</div>
                 </div>
-                <button class="btn btn-light btn-sm" type="submit">Submit Lead</button>
+                <button class="btn btn-light btn-sm" type="submit">Start Learning</button>
             </form>
         </div>
     </div>
