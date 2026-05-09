@@ -6,9 +6,14 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: hostinger-production
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,18 +45,33 @@ jobs:
           echo "password=$FTP_PASS" >> "$GITHUB_OUTPUT"
           echo "port=$FTP_PORT" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ steps.hostinger.outputs.server }}
-          username: ${{ steps.hostinger.outputs.username }}
-          password: ${{ steps.hostinger.outputs.password }}
-          port: ${{ steps.hostinger.outputs.port }}
-          protocol: ftp
-          server-dir: /domains/eduquestiq.com/public_html/
-          exclude: |
-            **/.git*
-            **/.github/**
-            **/.DS_Store
-            config.local.php
-            uploads/**
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Deploy via lftp mirror
+        shell: bash
+        env:
+          FTP_HOST: ${{ steps.hostinger.outputs.server }}
+          FTP_USER: ${{ steps.hostinger.outputs.username }}
+          FTP_PASS: ${{ steps.hostinger.outputs.password }}
+          FTP_PORT: ${{ steps.hostinger.outputs.port }}
+        run: |
+          set -euo pipefail
+
+          lftp -u "$FTP_USER","$FTP_PASS" -p "$FTP_PORT" "$FTP_HOST" <<'EOF'
+          set ftp:ssl-allow no
+          set ftp:passive-mode true
+          set net:max-retries 2
+          set net:reconnect-interval-base 5
+          set net:reconnect-interval-max 30
+          set mirror:use-pget-n 5
+          set xfer:clobber on
+          mirror --reverse --delete --verbose \
+            --exclude-glob .git* \
+            --exclude-glob .github/** \
+            --exclude-glob .DS_Store \
+            --exclude-glob config.local.php \
+            --exclude-glob uploads/** \
+            ./ /domains/eduquestiq.com/public_html/
+          bye
+          EOF
