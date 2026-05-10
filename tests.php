@@ -557,9 +557,6 @@ details[open] .eq-collapsible-icon {
                             <?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 140, '...')); ?>
                         </p>
                         <p class="small mb-2">
-                            <?php if ($test['teacher_name']): ?>
-                                Teacher: <?php echo htmlspecialchars($test['teacher_name']); ?><br>
-                            <?php endif; ?>
                             Marks: <?php echo (int)$test['total_marks']; ?> |
                             Duration: <?php echo (int)$test['duration_minutes']; ?> min<br>
                             Start: <?php echo htmlspecialchars(tests_catalog_kolkata_label($startAt)); ?><br>
@@ -708,9 +705,6 @@ details[open] .eq-collapsible-icon {
                                     </div>
                                     <p class="card-text small text-muted flex-grow-1"><?php echo htmlspecialchars(text_preview(strip_tags((string)$test['description']), 140, '...')); ?></p>
                                     <p class="small mb-2">
-                                        <?php if ($test['teacher_name']): ?>
-                                            Teacher: <?php echo htmlspecialchars($test['teacher_name']); ?><br>
-                                        <?php endif; ?>
                                         Marks: <?php echo (int)$test['total_marks']; ?> |
                                         Duration: <?php echo (int)$test['duration_minutes']; ?> min<br>
                                         Start: <?php echo htmlspecialchars(tests_catalog_kolkata_label($startAt)); ?><br>
