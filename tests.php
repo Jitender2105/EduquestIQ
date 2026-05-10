@@ -385,10 +385,7 @@ details[open] .eq-collapsible-icon {
 }
 </style>
 
-<div class="eq-page-head">
-    <h2>Tests</h2>
-    <p class="subtitle">Attempt MCQ and subjective assessments mapped to attributes and sub-attributes for live skill tracking.</p>
-</div>
+
 
 <?php if (!empty($_GET['purchase'])): ?>
     <div class="alert alert-success">Purchase status updated. You can start purchased tests or download purchased practice papers below.</div>
