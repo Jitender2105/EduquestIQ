@@ -385,7 +385,9 @@ details[open] .eq-collapsible-icon {
 }
 </style>
 
-
+<div class="eq-page-head">
+    <h2>Top Eduquest Ace Exam that will help you build the right future for your Child</h2>
+  </div>
 
 <?php if (!empty($_GET['purchase'])): ?>
     <div class="alert alert-success">Purchase status updated. You can start purchased tests or download purchased practice papers below.</div>
