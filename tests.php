@@ -11,21 +11,41 @@ $testHasActiveColumn = table_has_column($pdo, 'tests', 'is_active');
 $testHasGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
 $studentGrade = '';
 
-$tests = [];
-$practicePapers = [];
-if ($authUser) {
-    if ($authUser['role'] === 'student') {
-        $gradeStmt = $pdo->prepare('SELECT grade FROM users WHERE id = ? LIMIT 1');
-        $gradeStmt->execute([(int)$authUser['sub']]);
-        $studentGrade = trim((string)$gradeStmt->fetchColumn());
+function tests_catalog_kolkata_label(?DateTimeImmutable $value): string
+{
+    if (!$value) {
+        return 'Not set';
     }
 
+    return $value->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A');
+}
+
+function tests_catalog_countdown(DateTimeImmutable $nowUtc, ?DateTimeImmutable $deadlineUtc): ?array
+{
+    if (!$deadlineUtc || $deadlineUtc <= $nowUtc) {
+        return null;
+    }
+
+    return [
+        'iso' => $deadlineUtc->format(DateTimeInterface::ATOM),
+        'label' => tests_catalog_kolkata_label($deadlineUtc),
+    ];
+}
+
+$tests = [];
+$practicePapers = [];
+if ($authUser && $authUser['role'] === 'student') {
+    $gradeStmt = $pdo->prepare('SELECT grade FROM users WHERE id = ? LIMIT 1');
+    $gradeStmt->execute([(int)$authUser['sub']]);
+    $studentGrade = trim((string)$gradeStmt->fetchColumn());
+}
+
+try {
     $testWhere = [];
     if ($testHasActiveColumn) {
         $testWhere[] = 't.is_active = 1';
     }
-    $testWhere[] = '(t.end_at IS NULL OR t.end_at >= UTC_TIMESTAMP())';
-    if ($authUser['role'] === 'student' && $testHasGradeColumn && $studentGrade !== '') {
+    if ($authUser && $authUser['role'] === 'student' && $testHasGradeColumn && $studentGrade !== '') {
         $testWhere[] = "(t.target_grade = " . $pdo->quote($studentGrade) . " OR t.target_grade IS NULL OR t.target_grade = '')";
     }
     $stmt = $pdo->query(
@@ -42,7 +62,7 @@ if ($authUser) {
         $paperActiveClause = table_has_column($pdo, 'practice_papers', 'is_active')
             ? 'pp.is_active = 1'
             : 'pp.status = "published"';
-        $paperTestVisibilityClause = ' AND (t.end_at IS NULL OR t.end_at >= UTC_TIMESTAMP())';
+        $paperTestVisibilityClause = '';
         if ($testHasActiveColumn) {
             $paperTestVisibilityClause .= ' AND t.is_active = 1';
         }
@@ -54,6 +74,9 @@ if ($authUser) {
              ORDER BY pp.created_at DESC, pp.id DESC'
         )->fetchAll();
     }
+} catch (Throwable $e) {
+    $tests = [];
+    $practicePapers = [];
 }
 
 $attempted = [];
@@ -266,6 +289,36 @@ foreach ($practicePapers as $paper) {
     margin-top: 0.35rem;
 }
 
+.eq-buy-window {
+    margin-top: 0.7rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(168, 85, 247, 0.08));
+    border: 1px solid rgba(37, 99, 235, 0.14);
+}
+
+.eq-buy-window strong {
+    display: block;
+    color: #1e3a8a;
+    font-size: 0.88rem;
+}
+
+.eq-buy-window span {
+    display: block;
+    color: #475569;
+    font-size: 0.82rem;
+    margin-top: 0.2rem;
+}
+
+.eq-buy-window.is-closed {
+    background: rgba(148, 163, 184, 0.1);
+    border-color: rgba(148, 163, 184, 0.28);
+}
+
+.eq-buy-window.is-closed strong {
+    color: #475569;
+}
+
 .eq-section-card {
     background: #fff;
     border-radius: 24px;
@@ -447,9 +500,11 @@ details[open] .eq-collapsible-icon {
             <?php
                 $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
                 $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
-                $statusLabel = 'Open';
+                $statusLabel = 'Available';
                 $statusClass = 'text-bg-success';
                 $canAttempt = true;
+                $canBuy = $startAt === null || $nowUtc < $startAt;
+                $buyCountdown = tests_catalog_countdown($nowUtc, $startAt);
                 if ($startAt && $nowUtc < $startAt) {
                     $statusLabel = 'Upcoming';
                     $statusClass = 'text-bg-warning';
@@ -482,9 +537,22 @@ details[open] .eq-collapsible-icon {
                             <?php endif; ?>
                             Marks: <?php echo (int)$test['total_marks']; ?> |
                             Duration: <?php echo (int)$test['duration_minutes']; ?> min<br>
-                            Start: <?php echo $startAt ? htmlspecialchars($startAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?><br>
-                            End: <?php echo $endAt ? htmlspecialchars($endAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?>
+                            Start: <?php echo htmlspecialchars(tests_catalog_kolkata_label($startAt)); ?><br>
+                            End: <?php echo htmlspecialchars(tests_catalog_kolkata_label($endAt)); ?>
                         </p>
+                        <div class="eq-buy-window<?php echo $canBuy ? '' : ' is-closed'; ?>">
+                            <?php if ($buyCountdown): ?>
+                                <strong>Buy before test starts</strong>
+                                <span class="js-buy-countdown" data-deadline="<?php echo htmlspecialchars($buyCountdown['iso']); ?>">Time left to buy: calculating...</span>
+                                <span>Purchase closes on <?php echo htmlspecialchars($buyCountdown['label']); ?>.</span>
+                            <?php elseif ($canBuy): ?>
+                                <strong>Purchase window is open</strong>
+                                <span>This test can be bought until the start time is set.</span>
+                            <?php else: ?>
+                                <strong>Purchase window closed</strong>
+                                <span>Buying closed at the test start time.</span>
+                            <?php endif; ?>
+                        </div>
                         <div class="d-flex justify-content-between align-items-center">
                             <?php if ($authUser && $authUser['role'] === 'student'): ?>
                                 <?php if (isset($attempted[(int)$test['id']])): ?>
@@ -493,7 +561,7 @@ details[open] .eq-collapsible-icon {
                                         View SIRA Report
                                     </a>
                                 <?php else: ?>
-                                    <?php if (!$hasPaidTest): ?>
+                                    <?php if (!$hasPaidTest && $canBuy): ?>
                                         <label class="eq-purchase-choice" for="buy-test-<?php echo (int)$test['id']; ?>">
                                             <input class="bulk-purchase-item" type="checkbox" value="test:<?php echo (int)$test['id']; ?>" id="buy-test-<?php echo (int)$test['id']; ?>" data-title="<?php echo htmlspecialchars($test['title']); ?>" data-amount="<?php echo (int)amount_in_paise($testPrice); ?>">
                                             <span class="eq-purchase-choice-head">
@@ -502,6 +570,8 @@ details[open] .eq-collapsible-icon {
                                             </span>
                                             <span class="eq-purchase-choice-text">Select this paid test to include it in your current checkout.</span>
                                         </label>
+                                    <?php elseif (!$hasPaidTest): ?>
+                                        <button class="btn btn-sm btn-outline-secondary" disabled>Buying closed at test start</button>
                                     <?php elseif ($canAttempt): ?>
                                         <a href="<?php echo htmlspecialchars(url_for('test_attempt.php?id=' . (int)$test['id'])); ?>"
                                            class="btn btn-sm btn-primary">
@@ -512,7 +582,11 @@ details[open] .eq-collapsible-icon {
                                     <?php endif; ?>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <span class="text-muted small">Login as a student to attempt.</span>
+                                <?php if ($canBuy): ?>
+                                    <a class="btn btn-sm btn-outline-primary" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
+                                <?php else: ?>
+                                    <span class="text-muted small">Buying closed at test start.</span>
+                                <?php endif; ?>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -584,7 +658,7 @@ details[open] .eq-collapsible-icon {
                         <?php
                             $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
                             $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
-                            $statusLabel = 'Open';
+                            $statusLabel = 'Available';
                             $statusClass = 'text-bg-success';
                             $canAttempt = true;
                             if ($startAt && $nowUtc < $startAt) {
@@ -614,8 +688,8 @@ details[open] .eq-collapsible-icon {
                                         <?php endif; ?>
                                         Marks: <?php echo (int)$test['total_marks']; ?> |
                                         Duration: <?php echo (int)$test['duration_minutes']; ?> min<br>
-                                        Start: <?php echo $startAt ? htmlspecialchars($startAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?><br>
-                                        End: <?php echo $endAt ? htmlspecialchars($endAt->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A')) : 'Not set'; ?>
+                                        Start: <?php echo htmlspecialchars(tests_catalog_kolkata_label($startAt)); ?><br>
+                                        End: <?php echo htmlspecialchars(tests_catalog_kolkata_label($endAt)); ?>
                                     </p>
                                     <?php if ($authUser && $authUser['role'] === 'student'): ?>
                                         <?php if (isset($attempted[(int)$test['id']])): ?>
@@ -684,6 +758,51 @@ details[open] .eq-collapsible-icon {
 
     <?php if ($authUser && $authUser['role'] === 'student'): ?>
         <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <?php endif; ?>
+    <script>
+    (function () {
+        const nodes = Array.from(document.querySelectorAll('.js-buy-countdown'));
+        if (!nodes.length) {
+            return;
+        }
+
+        function renderCountdown() {
+            const now = Date.now();
+            nodes.forEach(function (node) {
+                const deadlineValue = node.getAttribute('data-deadline');
+                const deadlineMs = deadlineValue ? Date.parse(deadlineValue) : NaN;
+                if (!deadlineMs || Number.isNaN(deadlineMs)) {
+                    node.textContent = 'Time left to buy: unavailable';
+                    return;
+                }
+
+                let delta = Math.max(0, deadlineMs - now);
+                if (delta <= 0) {
+                    node.textContent = 'Time left to buy: closed';
+                    return;
+                }
+
+                const totalSeconds = Math.floor(delta / 1000);
+                const days = Math.floor(totalSeconds / 86400);
+                const hours = Math.floor((totalSeconds % 86400) / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = totalSeconds % 60;
+                const parts = [];
+                if (days > 0) {
+                    parts.push(days + 'd');
+                }
+                parts.push(String(hours).padStart(2, '0') + 'h');
+                parts.push(String(minutes).padStart(2, '0') + 'm');
+                parts.push(String(seconds).padStart(2, '0') + 's');
+                node.textContent = 'Time left to buy: ' + parts.join(' ');
+            });
+        }
+
+        renderCountdown();
+        window.setInterval(renderCountdown, 1000);
+    })();
+    </script>
+    <?php if ($authUser && $authUser['role'] === 'student'): ?>
         <script>
         (function () {
             const button = document.getElementById('bulk-buy-button');

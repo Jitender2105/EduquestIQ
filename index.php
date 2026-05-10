@@ -24,6 +24,27 @@ $examOptions = [
     'AEDI' => 'Ace Emotional & Digital Intelligence (AEDI)',
 ];
 
+function home_tests_kolkata_label(?DateTimeImmutable $value): string
+{
+    if (!$value) {
+        return 'Not set';
+    }
+
+    return $value->setTimezone(new DateTimeZone('Asia/Kolkata'))->format('d M Y, h:i A');
+}
+
+function home_tests_countdown(DateTimeImmutable $nowUtc, ?DateTimeImmutable $deadlineUtc): ?array
+{
+    if (!$deadlineUtc || $deadlineUtc <= $nowUtc) {
+        return null;
+    }
+
+    return [
+        'iso' => $deadlineUtc->format(DateTimeInterface::ATOM),
+        'label' => home_tests_kolkata_label($deadlineUtc),
+    ];
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && (string)($_POST['action'] ?? '') === 'submit_sira_lead') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
         $leadErrors[] = 'Invalid form token. Please refresh and try again.';
@@ -211,7 +232,6 @@ try {
     if ($testsHaveActiveColumn) {
         $testWhere[] = 't.is_active = 1';
     }
-    $testWhere[] = '(t.end_at IS NULL OR t.end_at >= UTC_TIMESTAMP())';
     if ($authUser && ($authUser['role'] ?? '') === 'student' && $testsHaveGradeColumn && $homeStudentGrade !== '') {
         $testWhere[] = "(t.target_grade = " . $pdo->quote($homeStudentGrade) . " OR t.target_grade IS NULL OR t.target_grade = '')";
     }
@@ -231,7 +251,6 @@ try {
         if ($testsHaveActiveColumn) {
             $paperWhere[] = 't.is_active = 1';
         }
-        $paperWhere[] = '(t.end_at IS NULL OR t.end_at >= UTC_TIMESTAMP())';
         $featuredPracticePapers = $pdo->query(
             'SELECT pp.*, t.title AS test_title
              FROM practice_papers pp
@@ -455,6 +474,31 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
     }
     .eq-featured-card .badge {
         border-radius: 999px;
+    }
+    .eq-featured-buy-window {
+        margin: 0.65rem 0 0.85rem;
+        padding: 0.7rem 0.85rem;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(67, 116, 255, 0.08), rgba(168, 85, 247, 0.08));
+        border: 1px solid rgba(67, 116, 255, 0.14);
+    }
+    .eq-featured-buy-window strong {
+        display: block;
+        color: #2b3c91;
+        font-size: 0.85rem;
+    }
+    .eq-featured-buy-window span {
+        display: block;
+        color: #5e6785;
+        font-size: 0.8rem;
+        margin-top: 0.16rem;
+    }
+    .eq-featured-buy-window.is-closed {
+        background: rgba(148, 163, 184, 0.08);
+        border-color: rgba(148, 163, 184, 0.24);
+    }
+    .eq-featured-buy-window.is-closed strong {
+        color: #475569;
     }
     .eq-featured-cart {
         display: none;
@@ -713,12 +757,20 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
                 <?php foreach ($featuredTests as $test): ?>
                     <?php
                         $startAt = !empty($test['start_at']) ? new DateTimeImmutable((string)$test['start_at'], new DateTimeZone('UTC')) : null;
-                        $statusLabel = 'Open';
+                        $endAt = !empty($test['end_at']) ? new DateTimeImmutable((string)$test['end_at'], new DateTimeZone('UTC')) : null;
+                        $statusLabel = 'Available';
                         $statusClass = 'text-bg-success';
                         $canAttempt = true;
+                        $canBuy = $startAt === null || $homeNowUtc < $startAt;
+                        $buyCountdown = home_tests_countdown($homeNowUtc, $startAt);
                         if ($startAt && $homeNowUtc < $startAt) {
                             $statusLabel = 'Upcoming';
                             $statusClass = 'text-bg-warning';
+                            $canAttempt = false;
+                        }
+                        if ($endAt && $homeNowUtc > $endAt) {
+                            $statusLabel = 'Closed';
+                            $statusClass = 'text-bg-secondary';
                             $canAttempt = false;
                         }
                         $testPrice = (float)($test['price_inr'] ?? 0);
@@ -738,6 +790,19 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
                             · <?php echo (int)$test['duration_minutes']; ?> min
                             · <?php echo (int)$test['total_marks']; ?> marks
                         </div>
+                        <div class="eq-featured-buy-window<?php echo $canBuy ? '' : ' is-closed'; ?>">
+                            <?php if ($buyCountdown): ?>
+                                <strong>Buy before test starts</strong>
+                                <span class="js-buy-countdown" data-deadline="<?php echo htmlspecialchars($buyCountdown['iso']); ?>">Time left to buy: calculating...</span>
+                                <span>Purchase closes on <?php echo htmlspecialchars($buyCountdown['label']); ?>.</span>
+                            <?php elseif ($canBuy): ?>
+                                <strong>Purchase window is open</strong>
+                                <span>This test can be bought until the start time is set.</span>
+                            <?php else: ?>
+                                <strong>Purchase window closed</strong>
+                                <span>Buying closed at the test start time.</span>
+                            <?php endif; ?>
+                        </div>
                         <div class="d-flex justify-content-between align-items-center gap-2">
                             <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
                                 <?php if ($isPurchased): ?>
@@ -747,18 +812,26 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
                                         <button class="btn btn-outline-secondary btn-sm" disabled>Purchased - starts later</button>
                                     <?php endif; ?>
                                 <?php else: ?>
-                                    <button
-                                        type="button"
-                                        class="btn btn-outline-primary btn-sm eq-featured-add-btn"
-                                        data-item-value="test:<?php echo (int)$test['id']; ?>"
-                                        data-item-title="<?php echo htmlspecialchars($test['title']); ?>"
-                                        data-item-amount="<?php echo (int)amount_in_paise($testPrice); ?>"
-                                    >
-                                        Add to Cart
-                                    </button>
+                                    <?php if ($canBuy): ?>
+                                        <button
+                                            type="button"
+                                            class="btn btn-outline-primary btn-sm eq-featured-add-btn"
+                                            data-item-value="test:<?php echo (int)$test['id']; ?>"
+                                            data-item-title="<?php echo htmlspecialchars($test['title']); ?>"
+                                            data-item-amount="<?php echo (int)amount_in_paise($testPrice); ?>"
+                                        >
+                                            Add to Cart
+                                        </button>
+                                    <?php else: ?>
+                                        <button class="btn btn-outline-secondary btn-sm" disabled>Buying closed</button>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
+                                <?php if ($canBuy): ?>
+                                    <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('login.php')); ?>">Login to Buy</a>
+                                <?php else: ?>
+                                    <button class="btn btn-outline-secondary btn-sm" disabled>Buying closed</button>
+                                <?php endif; ?>
                             <?php endif; ?>
                             <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>" class="small text-decoration-none fw-semibold">See details</a>
                         </div>
@@ -959,6 +1032,48 @@ if (window.jQuery && jQuery.fn.select2) {
         });
     });
 }
+
+(function () {
+    const nodes = Array.from(document.querySelectorAll('.js-buy-countdown'));
+    if (!nodes.length) {
+        return;
+    }
+
+    function renderCountdown() {
+        const now = Date.now();
+        nodes.forEach(function (node) {
+            const deadlineValue = node.getAttribute('data-deadline');
+            const deadlineMs = deadlineValue ? Date.parse(deadlineValue) : NaN;
+            if (!deadlineMs || Number.isNaN(deadlineMs)) {
+                node.textContent = 'Time left to buy: unavailable';
+                return;
+            }
+
+            const delta = Math.max(0, deadlineMs - now);
+            if (delta <= 0) {
+                node.textContent = 'Time left to buy: closed';
+                return;
+            }
+
+            const totalSeconds = Math.floor(delta / 1000);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            const parts = [];
+            if (days > 0) {
+                parts.push(days + 'd');
+            }
+            parts.push(String(hours).padStart(2, '0') + 'h');
+            parts.push(String(minutes).padStart(2, '0') + 'm');
+            parts.push(String(seconds).padStart(2, '0') + 's');
+            node.textContent = 'Time left to buy: ' + parts.join(' ');
+        });
+    }
+
+    renderCountdown();
+    window.setInterval(renderCountdown, 1000);
+})();
 
 <?php if ($authUser && ($authUser['role'] ?? '') === 'student'): ?>
 (function () {
