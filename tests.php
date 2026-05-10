@@ -517,7 +517,7 @@ details[open] .eq-collapsible-icon {
     <?php endif; ?>
 
     <div class="eq-page-head text-start">
-        <h3>Paid Tests</h3>
+        <h3>Featured Tests</h3>
         <p class="subtitle">Buy upcoming tests in advance. Once purchased, you can start them only during the live test window.</p>
     </div>
     <div class="row g-3">
