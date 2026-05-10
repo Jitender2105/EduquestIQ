@@ -194,14 +194,22 @@ foreach ($practicePapers as $paper) {
 }
 
 .eq-cart-bar {
-    position: sticky;
-    top: 1rem;
-    z-index: 5;
+    display: none;
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    width: min(1120px, calc(100vw - 1.5rem));
+    z-index: 1040;
     background: linear-gradient(135deg, #0f172a, #1e293b);
     color: #fff;
     border-radius: 24px;
     padding: 1.1rem 1.2rem;
     box-shadow: 0 22px 52px rgba(15, 23, 42, 0.24);
+}
+
+.eq-cart-bar.is-visible {
+    display: block;
 }
 
 .eq-cart-meta {
@@ -380,7 +388,10 @@ details[open] .eq-collapsible-icon {
 
 @media (max-width: 767.98px) {
     .eq-cart-bar {
-        position: static;
+        width: calc(100vw - 1rem);
+        bottom: 0.5rem;
+        border-radius: 20px;
+        padding: 1rem;
     }
 }
 </style>
@@ -466,7 +477,7 @@ details[open] .eq-collapsible-icon {
             </div>
         </div>
 
-        <div class="eq-cart-bar mb-4">
+        <div class="eq-cart-bar" id="test-cart-bar">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div>
                     <h5 class="mb-1 text-white">Bulk Purchase Cart</h5>
@@ -804,6 +815,7 @@ details[open] .eq-collapsible-icon {
     <?php if ($authUser && $authUser['role'] === 'student'): ?>
         <script>
         (function () {
+            const cartBar = document.getElementById('test-cart-bar');
             const button = document.getElementById('bulk-buy-button');
             const csrfToken = document.getElementById('payment-csrf-token') ? document.getElementById('payment-csrf-token').value : '';
             const message = document.getElementById('payment-message');
@@ -833,7 +845,7 @@ details[open] .eq-collapsible-icon {
             }
 
             function updateCartSummary() {
-                if (!countNode || !totalNode || !itemsNode) return;
+                if (!countNode || !totalNode || !itemsNode || !cartBar) return;
                 const selectedInputs = Array.from(document.querySelectorAll('.bulk-purchase-item:checked'));
                 const totalPaise = selectedInputs.reduce(function (sum, input) {
                     return sum + Number(input.dataset.amount || 0);
@@ -843,6 +855,7 @@ details[open] .eq-collapsible-icon {
                 totalNode.textContent = formatInr(totalPaise);
                 itemsNode.innerHTML = '';
                 if (!selectedInputs.length) {
+                    cartBar.classList.remove('is-visible');
                     const pill = document.createElement('span');
                     pill.className = 'eq-selected-pill';
                     pill.textContent = 'No paid items selected yet';
@@ -850,6 +863,7 @@ details[open] .eq-collapsible-icon {
                     return;
                 }
 
+                cartBar.classList.add('is-visible');
                 selectedInputs.forEach(function (input) {
                     const pill = document.createElement('span');
                     pill.className = 'eq-selected-pill';

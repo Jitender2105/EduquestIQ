@@ -502,7 +502,12 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
     }
     .eq-featured-cart {
         display: none;
-        margin: 22px 0 0;
+        position: fixed;
+        left: 50%;
+        bottom: 1rem;
+        transform: translateX(-50%);
+        width: min(1120px, calc(100vw - 1.5rem));
+        z-index: 1040;
         background: linear-gradient(135deg, #101937, #1b2552);
         color: #fff;
         border-radius: 24px;
@@ -571,6 +576,12 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
         }
         .eq-featured-list {
             max-height: 520px;
+        }
+        .eq-featured-cart {
+            width: calc(100vw - 1rem);
+            bottom: 0.5rem;
+            border-radius: 20px;
+            padding: 1rem;
         }
     }
 </style>
