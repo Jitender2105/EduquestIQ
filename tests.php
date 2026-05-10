@@ -318,6 +318,21 @@ foreach ($practicePapers as $paper) {
     margin-top: 0.2rem;
 }
 
+.eq-buy-window .js-buy-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.45rem;
+    padding: 0.42rem 0.72rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    box-shadow: 0 10px 24px rgba(59, 130, 246, 0.22);
+}
+
 .eq-buy-window.is-closed {
     background: rgba(148, 163, 184, 0.1);
     border-color: rgba(148, 163, 184, 0.28);
