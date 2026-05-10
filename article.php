@@ -234,9 +234,8 @@ function article_detail_date(?string $value): string
             </div>
             <div class="col-lg-7">
                 <div class="eq-article-hero-body">
-                    <div class="eq-article-kicker">EduquestIQ Article</div>
+                   
                     <div class="eq-article-meta">
-                        <span class="badge text-bg-light text-dark"><?php echo htmlspecialchars(ucfirst((string)$article['article_type'])); ?></span>
                         <?php if ($schoolLabel !== ''): ?>
                             <span class="badge text-bg-light text-dark"><?php echo htmlspecialchars($schoolLabel); ?></span>
                         <?php endif; ?>
@@ -286,7 +285,6 @@ function article_detail_date(?string $value): string
             <div class="eq-article-sidebar-card p-3 mb-4">
                 <h5 class="mb-3">Article Info</h5>
                 <ul class="list-unstyled small mb-0">
-                    <li class="mb-2"><strong>Slug:</strong> <code><?php echo htmlspecialchars(url_for('articles/' . (string)$article['slug'])); ?></code></li>
                     <li class="mb-2"><strong>Created by:</strong> <?php echo htmlspecialchars((string)$article['creator_name']); ?></li>
                     <li class="mb-2"><strong>Created:</strong> <?php echo htmlspecialchars(article_detail_date((string)$article['created_at'])); ?></li>
                     <?php if ($schoolLabel !== ''): ?>
