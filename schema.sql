@@ -313,6 +313,7 @@ CREATE TABLE video_lectures (
   duration INT,
   sequence_order INT,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
+  is_featured TINYINT(1) NOT NULL DEFAULT 0,
   KEY idx_video_test (test_id),
   KEY idx_video_attr (attribute_id),
   KEY idx_video_subattr (sub_attribute_id),

@@ -9,6 +9,7 @@ $hasVideoTestColumn = table_has_column($pdo, 'video_lectures', 'test_id');
 $hasVideoAttributeColumn = table_has_column($pdo, 'video_lectures', 'attribute_id');
 $hasVideoSubAttributeColumn = table_has_column($pdo, 'video_lectures', 'sub_attribute_id');
 $hasVideoDescriptionColumn = table_has_column($pdo, 'video_lectures', 'description');
+$hasVideoFeaturedColumn = table_has_column($pdo, 'video_lectures', 'is_featured');
 
 function frontend_video_extract_youtube_id(string $url): ?string
 {
@@ -65,6 +66,11 @@ if ($hasVideoSubAttributeColumn) {
 } else {
     $select[] = 'NULL AS sub_attribute_name';
 }
+if ($hasVideoFeaturedColumn) {
+    $select[] = 'vl.is_featured';
+} else {
+    $select[] = '0 AS is_featured';
+}
 
 $query = 'SELECT ' . implode(', ', $select) . '
     FROM video_lectures vl
@@ -81,6 +87,9 @@ if ($hasVideoSubAttributeColumn) {
 $query .= table_has_column($pdo, 'video_lectures', 'is_active') ? 'WHERE vl.is_active = 1 ' : '';
 
 $orderBy = [];
+if ($hasVideoFeaturedColumn) {
+    $orderBy[] = 'vl.is_featured DESC';
+}
 if ($hasVideoTestColumn) {
     $orderBy[] = 'COALESCE(t.title, "")';
 }
@@ -117,6 +126,7 @@ foreach ($rows as $row) {
         'test_title' => (string)($row['test_title'] ?? ''),
         'attribute_name' => (string)($row['attribute_name'] ?? ''),
         'sub_attribute_name' => (string)($row['sub_attribute_name'] ?? ''),
+        'is_featured' => !empty($row['is_featured']),
         'youtube_id' => $youtubeId,
         'youtube_url' => 'https://www.youtube.com/watch?v=' . $youtubeId,
         'embed_url' => 'https://www.youtube.com/embed/' . $youtubeId,
@@ -196,6 +206,10 @@ foreach ($rows as $row) {
     box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
     border: 1px solid rgba(148, 163, 184, 0.15);
 }
+.eq-video-card.is-featured {
+    border-color: rgba(245, 158, 11, 0.42);
+    box-shadow: 0 22px 52px rgba(245, 158, 11, 0.14);
+}
 .eq-video-frame {
     position: relative;
     padding-top: 56.25%;
@@ -214,6 +228,18 @@ foreach ($rows as $row) {
 .eq-video-body h4 {
     font-size: 1rem;
     margin-bottom: 0.45rem;
+}
+.eq-video-featured-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #92400e;
+    background: #fef3c7;
+    border-radius: 999px;
+    padding: 0.28rem 0.62rem;
+    margin-bottom: 0.6rem;
 }
 .eq-video-meta {
     display: flex;
@@ -277,11 +303,12 @@ foreach ($rows as $row) {
                 </div>
                 <div class="eq-video-grid">
                     <?php foreach ($videos as $video): ?>
-                        <article class="eq-video-card">
+                        <article class="eq-video-card<?php echo $video['is_featured'] ? ' is-featured' : ''; ?>">
                             <div class="eq-video-frame">
                                 <iframe src="<?php echo htmlspecialchars($video['embed_url']); ?>" title="<?php echo htmlspecialchars($video['title']); ?>" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                             </div>
                             <div class="eq-video-body">
+                                <?php if ($video['is_featured']): ?><div class="eq-video-featured-badge">Featured</div><?php endif; ?>
                                 <h4><?php echo htmlspecialchars($video['title']); ?></h4>
                                 <div class="eq-video-meta">
                                     <?php if ($video['course_title'] !== ''): ?><span><?php echo htmlspecialchars($video['course_title']); ?></span><?php endif; ?>
@@ -304,11 +331,12 @@ foreach ($rows as $row) {
                 </div>
                 <div class="eq-video-grid">
                     <?php foreach ($videos as $video): ?>
-                        <article class="eq-video-card">
+                        <article class="eq-video-card<?php echo $video['is_featured'] ? ' is-featured' : ''; ?>">
                             <div class="eq-video-frame">
                                 <iframe src="<?php echo htmlspecialchars($video['embed_url']); ?>" title="<?php echo htmlspecialchars($video['title']); ?>" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                             </div>
                             <div class="eq-video-body">
+                                <?php if ($video['is_featured']): ?><div class="eq-video-featured-badge">Featured</div><?php endif; ?>
                                 <h4><?php echo htmlspecialchars($video['title']); ?></h4>
                                 <div class="eq-video-meta">
                                     <?php if ($video['course_title'] !== ''): ?><span><?php echo htmlspecialchars($video['course_title']); ?></span><?php endif; ?>
@@ -332,11 +360,12 @@ foreach ($rows as $row) {
                 </div>
                 <div class="eq-video-grid">
                     <?php foreach ($generalVideos as $video): ?>
-                        <article class="eq-video-card">
+                        <article class="eq-video-card<?php echo $video['is_featured'] ? ' is-featured' : ''; ?>">
                             <div class="eq-video-frame">
                                 <iframe src="<?php echo htmlspecialchars($video['embed_url']); ?>" title="<?php echo htmlspecialchars($video['title']); ?>" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                             </div>
                             <div class="eq-video-body">
+                                <?php if ($video['is_featured']): ?><div class="eq-video-featured-badge">Featured</div><?php endif; ?>
                                 <h4><?php echo htmlspecialchars($video['title']); ?></h4>
                                 <div class="eq-video-meta">
                                     <?php if ($video['course_title'] !== ''): ?><span><?php echo htmlspecialchars($video['course_title']); ?></span><?php endif; ?>

@@ -9,8 +9,10 @@ $pdo = get_pdo();
 $hasVideoTestColumn = table_has_column($pdo, 'video_lectures', 'test_id');
 $hasVideoAttributeColumn = table_has_column($pdo, 'video_lectures', 'attribute_id');
 $hasVideoSubAttributeColumn = table_has_column($pdo, 'video_lectures', 'sub_attribute_id');
-$hasVideoDescriptionColumn = table_has_column($pdo, 'video_lectures', 'description');
 $hasVideoActiveColumn = table_has_column($pdo, 'video_lectures', 'is_active');
+$hasVideoFeaturedColumn = table_has_column($pdo, 'video_lectures', 'is_featured');
+$hasVideoDescriptionColumn = table_has_column($pdo, 'video_lectures', 'description');
+$hasVideoCourseColumn = table_has_column($pdo, 'video_lectures', 'course_id');
 
 function backend_video_table_exists(PDO $pdo, string $table): bool
 {
@@ -51,12 +53,78 @@ function backend_video_extract_youtube_id(string $url): ?string
     return null;
 }
 
+function backend_video_default_form(): array
+{
+    return [
+        'edit_id' => '',
+        'test_id' => '',
+        'attribute_id' => '',
+        'sub_attribute_id' => '',
+        'video_url' => '',
+        'is_active' => '1',
+        'is_featured' => '0',
+    ];
+}
+
+function backend_video_form_from_source(array $source): array
+{
+    $form = backend_video_default_form();
+    $form['edit_id'] = trim((string)($source['edit_id'] ?? ''));
+    $form['test_id'] = trim((string)($source['test_id'] ?? ''));
+    $form['attribute_id'] = trim((string)($source['attribute_id'] ?? ''));
+    $form['sub_attribute_id'] = trim((string)($source['sub_attribute_id'] ?? ''));
+    $form['video_url'] = trim((string)($source['video_url'] ?? ''));
+    $form['is_active'] = (string)($source['is_active'] ?? '1');
+    $form['is_featured'] = !empty($source['is_featured']) ? '1' : '0';
+    return $form;
+}
+
+$migrationMessages = [];
+if (!$hasVideoTestColumn || !$hasVideoAttributeColumn || !$hasVideoSubAttributeColumn) {
+    $migrationMessages[] = 'Run migration migrations/2026-05-12_video_lecture_mapping_upgrade.sql for test and skill mappings.';
+}
+if (!$hasVideoFeaturedColumn) {
+    $migrationMessages[] = 'Run migration migrations/2026-05-12_video_lecture_backend_featured.sql for the featured flag.';
+}
+
 $errors = [];
 $success = null;
-$migrationNotice = null;
+$form = backend_video_default_form();
 
-if (!$hasVideoTestColumn || !$hasVideoAttributeColumn || !$hasVideoSubAttributeColumn || !$hasVideoDescriptionColumn) {
-    $migrationNotice = 'Run migration migrations/2026-05-12_video_lecture_mapping_upgrade.sql to enable full video mapping fields.';
+if (isset($_GET['edit'])) {
+    $editId = max(0, (int)$_GET['edit']);
+    if ($editId > 0) {
+        $selectParts = ['id', 'video_url'];
+        if ($hasVideoTestColumn) {
+            $selectParts[] = 'test_id';
+        }
+        if ($hasVideoAttributeColumn) {
+            $selectParts[] = 'attribute_id';
+        }
+        if ($hasVideoSubAttributeColumn) {
+            $selectParts[] = 'sub_attribute_id';
+        }
+        if ($hasVideoActiveColumn) {
+            $selectParts[] = 'is_active';
+        }
+        if ($hasVideoFeaturedColumn) {
+            $selectParts[] = 'is_featured';
+        }
+        $stmt = $pdo->prepare('SELECT ' . implode(', ', $selectParts) . ' FROM video_lectures WHERE id = ? LIMIT 1');
+        $stmt->execute([$editId]);
+        $existing = $stmt->fetch();
+        if ($existing) {
+            $form = [
+                'edit_id' => (string)$existing['id'],
+                'test_id' => (string)($existing['test_id'] ?? ''),
+                'attribute_id' => (string)($existing['attribute_id'] ?? ''),
+                'sub_attribute_id' => (string)($existing['sub_attribute_id'] ?? ''),
+                'video_url' => (string)($existing['video_url'] ?? ''),
+                'is_active' => !isset($existing['is_active']) || (int)$existing['is_active'] === 1 ? '1' : '0',
+                'is_featured' => !empty($existing['is_featured']) ? '1' : '0',
+            ];
+        }
+    }
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
@@ -65,88 +133,125 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     } else {
         try {
             backend_require_admin($user);
+            $form = backend_video_form_from_source($_POST);
 
-            $title = trim((string)($_POST['title'] ?? ''));
-            $videoUrl = trim((string)($_POST['video_url'] ?? ''));
-            $description = trim((string)($_POST['description'] ?? ''));
-            $duration = max(1, (int)($_POST['duration'] ?? 0));
-            $sequenceOrder = max(1, (int)($_POST['sequence_order'] ?? 1));
-            $courseId = max(1, (int)($_POST['course_id'] ?? 0));
-            $testId = max(0, (int)($_POST['test_id'] ?? 0));
-            $attributeId = max(0, (int)($_POST['attribute_id'] ?? 0));
-            $subAttributeId = max(0, (int)($_POST['sub_attribute_id'] ?? 0));
-            $isActive = (string)($_POST['is_active'] ?? '1') === '1' ? 1 : 0;
+            $editId = max(0, (int)$form['edit_id']);
+            $testId = max(0, (int)$form['test_id']);
+            $attributeId = max(0, (int)$form['attribute_id']);
+            $subAttributeId = max(0, (int)$form['sub_attribute_id']);
+            $videoUrl = $form['video_url'];
+            $youtubeId = backend_video_extract_youtube_id($videoUrl);
+            $isActive = $form['is_active'] === '0' ? 0 : 1;
+            $isFeatured = $form['is_featured'] === '1' ? 1 : 0;
 
-            if ($title === '') {
-                $errors[] = 'Video title is required.';
-            }
-            if ($courseId <= 0) {
-                $errors[] = 'Course is required.';
-            }
-            if (backend_video_extract_youtube_id($videoUrl) === null) {
+            if ($youtubeId === null) {
                 $errors[] = 'Enter a valid YouTube URL.';
+            }
+            if ($testId <= 0 && $attributeId <= 0 && $subAttributeId <= 0) {
+                $errors[] = 'Select at least one mapping: test, attribute, or sub-attribute.';
             }
 
             if ($errors === []) {
-                $columns = ['course_id', 'title'];
-                $placeholders = ['?', '?'];
-                $values = [$courseId, $title];
+                $title = 'YouTube Lecture ' . $youtubeId;
+                $description = $hasVideoDescriptionColumn ? ('Embedded lecture from YouTube: ' . $videoUrl) : null;
+                $sequenceOrder = 1;
+                $duration = 10;
 
-                if ($hasVideoDescriptionColumn) {
-                    $columns[] = 'description';
-                    $placeholders[] = '?';
-                    $values[] = $description !== '' ? $description : null;
-                }
-                if ($hasVideoTestColumn) {
-                    $columns[] = 'test_id';
-                    $placeholders[] = '?';
-                    $values[] = $testId > 0 ? $testId : null;
-                }
-                if ($hasVideoAttributeColumn) {
-                    $columns[] = 'attribute_id';
-                    $placeholders[] = '?';
-                    $values[] = $attributeId > 0 ? $attributeId : null;
-                }
-                if ($hasVideoSubAttributeColumn) {
-                    $columns[] = 'sub_attribute_id';
-                    $placeholders[] = '?';
-                    $values[] = $subAttributeId > 0 ? $subAttributeId : null;
+                $defaultCourseId = null;
+                if ($hasVideoCourseColumn) {
+                    $defaultCourseId = $pdo->query('SELECT id FROM courses ORDER BY id ASC LIMIT 1')->fetchColumn();
+                    if ($defaultCourseId === false) {
+                        $defaultCourseId = null;
+                    }
                 }
 
-                $columns = array_merge($columns, ['video_url', 'duration', 'sequence_order']);
-                $placeholders = array_merge($placeholders, ['?', '?', '?']);
-                $values = array_merge($values, [$videoUrl, $duration, $sequenceOrder]);
+                if ($editId > 0) {
+                    $updates = ['title = ?', 'video_url = ?', 'duration = ?', 'sequence_order = ?'];
+                    $values = [$title, $videoUrl, $duration, $sequenceOrder];
 
-                if ($hasVideoActiveColumn) {
-                    $columns[] = 'is_active';
-                    $placeholders[] = '?';
-                    $values[] = $isActive;
-                }
+                    if ($hasVideoDescriptionColumn) {
+                        $updates[] = 'description = ?';
+                        $values[] = $description;
+                    }
+                    if ($hasVideoCourseColumn && $defaultCourseId !== null) {
+                        $updates[] = 'course_id = ?';
+                        $values[] = (int)$defaultCourseId;
+                    }
+                    if ($hasVideoTestColumn) {
+                        $updates[] = 'test_id = ?';
+                        $values[] = $testId > 0 ? $testId : null;
+                    }
+                    if ($hasVideoAttributeColumn) {
+                        $updates[] = 'attribute_id = ?';
+                        $values[] = $attributeId > 0 ? $attributeId : null;
+                    }
+                    if ($hasVideoSubAttributeColumn) {
+                        $updates[] = 'sub_attribute_id = ?';
+                        $values[] = $subAttributeId > 0 ? $subAttributeId : null;
+                    }
+                    if ($hasVideoActiveColumn) {
+                        $updates[] = 'is_active = ?';
+                        $values[] = $isActive;
+                    }
+                    if ($hasVideoFeaturedColumn) {
+                        $updates[] = 'is_featured = ?';
+                        $values[] = $isFeatured;
+                    }
 
-                $stmt = $pdo->prepare(
-                    'INSERT INTO video_lectures (' . implode(', ', $columns) . ')
-                     VALUES (' . implode(', ', $placeholders) . ')'
-                );
-                $stmt->execute($values);
-                $videoId = (int)$pdo->lastInsertId();
+                    $values[] = $editId;
+                    $stmt = $pdo->prepare('UPDATE video_lectures SET ' . implode(', ', $updates) . ' WHERE id = ?');
+                    $stmt->execute($values);
+                    $success = 'Video updated.';
+                } else {
+                    $columns = ['title', 'video_url', 'duration', 'sequence_order'];
+                    $placeholders = ['?', '?', '?', '?'];
+                    $values = [$title, $videoUrl, $duration, $sequenceOrder];
 
-                if (backend_video_table_exists($pdo, 'content_metadata')) {
+                    if ($hasVideoCourseColumn) {
+                        $columns[] = 'course_id';
+                        $placeholders[] = '?';
+                        $values[] = $defaultCourseId;
+                    }
+                    if ($hasVideoDescriptionColumn) {
+                        $columns[] = 'description';
+                        $placeholders[] = '?';
+                        $values[] = $description;
+                    }
+                    if ($hasVideoTestColumn) {
+                        $columns[] = 'test_id';
+                        $placeholders[] = '?';
+                        $values[] = $testId > 0 ? $testId : null;
+                    }
+                    if ($hasVideoAttributeColumn) {
+                        $columns[] = 'attribute_id';
+                        $placeholders[] = '?';
+                        $values[] = $attributeId > 0 ? $attributeId : null;
+                    }
+                    if ($hasVideoSubAttributeColumn) {
+                        $columns[] = 'sub_attribute_id';
+                        $placeholders[] = '?';
+                        $values[] = $subAttributeId > 0 ? $subAttributeId : null;
+                    }
+                    if ($hasVideoActiveColumn) {
+                        $columns[] = 'is_active';
+                        $placeholders[] = '?';
+                        $values[] = $isActive;
+                    }
+                    if ($hasVideoFeaturedColumn) {
+                        $columns[] = 'is_featured';
+                        $placeholders[] = '?';
+                        $values[] = $isFeatured;
+                    }
+
                     $stmt = $pdo->prepare(
-                        'INSERT INTO content_metadata
-                         (entity_type, entity_id, language, visibility, version_label, license_type, tags_json)
-                         VALUES ("video", ?, ?, ?, ?, ?, ?)'
+                        'INSERT INTO video_lectures (' . implode(', ', $columns) . ')
+                         VALUES (' . implode(', ', $placeholders) . ')'
                     );
-                    $stmt->execute([
-                        $videoId,
-                        trim((string)($_POST['language'] ?? '')) ?: 'en',
-                        (string)($_POST['visibility'] ?? 'public'),
-                        trim((string)($_POST['version_label'] ?? '')) ?: null,
-                        trim((string)($_POST['license_type'] ?? '')) ?: null,
-                        trim((string)($_POST['tags_json'] ?? '')) ?: null,
-                    ]);
+                    $stmt->execute($values);
+                    $success = 'Video added.';
                 }
 
-                $success = 'Video tutorial saved.';
+                $form = backend_video_default_form();
             }
         } catch (Throwable $e) {
             $errors[] = 'Save failed: ' . $e->getMessage();
@@ -154,12 +259,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
 }
 
-$courses = $pdo->query('SELECT id, title FROM courses ORDER BY title ASC')->fetchAll();
 $tests = $pdo->query('SELECT id, title FROM tests ORDER BY title ASC')->fetchAll();
 $attributes = $pdo->query('SELECT id, name FROM attributes ORDER BY name ASC')->fetchAll();
 $subAttributes = $pdo->query('SELECT id, attribute_id, name FROM sub_attributes ORDER BY attribute_id ASC, name ASC')->fetchAll();
 
-$videoSelect = ['vl.id', 'c.title AS course_title', 'vl.title', 'vl.duration', 'vl.sequence_order', 'vl.video_url'];
+$videoSelect = ['vl.id', 'vl.title', 'vl.video_url'];
 if ($hasVideoTestColumn) {
     $videoSelect[] = 't.title AS test_title';
 }
@@ -169,10 +273,15 @@ if ($hasVideoAttributeColumn) {
 if ($hasVideoSubAttributeColumn) {
     $videoSelect[] = 'sa.name AS sub_attribute_name';
 }
+if ($hasVideoActiveColumn) {
+    $videoSelect[] = 'vl.is_active';
+}
+if ($hasVideoFeaturedColumn) {
+    $videoSelect[] = 'vl.is_featured';
+}
 
 $videosQuery = 'SELECT ' . implode(', ', $videoSelect) . '
-    FROM video_lectures vl
-    JOIN courses c ON c.id = vl.course_id ';
+    FROM video_lectures vl ';
 if ($hasVideoTestColumn) {
     $videosQuery .= 'LEFT JOIN tests t ON t.id = vl.test_id ';
 }
@@ -182,21 +291,24 @@ if ($hasVideoAttributeColumn) {
 if ($hasVideoSubAttributeColumn) {
     $videosQuery .= 'LEFT JOIN sub_attributes sa ON sa.id = vl.sub_attribute_id ';
 }
-$videosQuery .= 'ORDER BY vl.id DESC LIMIT 150';
+$videosQuery .= 'ORDER BY ';
+if ($hasVideoFeaturedColumn) {
+    $videosQuery .= 'vl.is_featured DESC, ';
+}
+$videosQuery .= 'vl.id DESC LIMIT 150';
 $videos = $pdo->query($videosQuery)->fetchAll();
 
 require_once dirname(__DIR__) . '/includes_header.php';
 ?>
 <div class="eq-page-head">
     <h2>Video Tutorials Backend</h2>
-    <p class="subtitle">Map YouTube lectures to tests and skill areas so the frontend can group them like a learning video hub.</p>
+    <p class="subtitle">Manage mapped YouTube videos with a minimal backend: mapping, URL, visibility, featured placement, and edit support.</p>
 </div>
 <?php require __DIR__ . '/nav.php'; ?>
-<?php require __DIR__ . '/richtext.php'; ?>
 
-<?php if ($migrationNotice): ?>
-    <div class="alert alert-warning"><?php echo htmlspecialchars($migrationNotice); ?></div>
-<?php endif; ?>
+<?php foreach ($migrationMessages as $message): ?>
+    <div class="alert alert-warning"><?php echo htmlspecialchars($message); ?></div>
+<?php endforeach; ?>
 <?php if ($success): ?>
     <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
 <?php endif; ?>
@@ -214,40 +326,37 @@ require_once dirname(__DIR__) . '/includes_header.php';
     <div class="col-lg-5">
         <form method="post" class="card p-3 shadow-sm">
             <?php echo csrf_field(); ?>
-            <h5 class="mb-3">Add YouTube Video Lecture</h5>
+            <input type="hidden" name="edit_id" value="<?php echo htmlspecialchars($form['edit_id']); ?>">
+            <h5 class="mb-3"><?php echo $form['edit_id'] !== '' ? 'Edit Video' : 'Add Video'; ?></h5>
 
-            <label class="form-label">Course</label>
-            <select class="form-select mb-3" name="course_id" required>
-                <option value="">Select course</option>
-                <?php foreach ($courses as $course): ?>
-                    <option value="<?php echo (int)$course['id']; ?>"><?php echo htmlspecialchars((string)$course['title']); ?></option>
-                <?php endforeach; ?>
-            </select>
-
-            <label class="form-label">Map to test</label>
+            <label class="form-label">Select Test</label>
             <select class="form-select mb-3" name="test_id">
-                <option value="">Optional test mapping</option>
+                <option value="">Select test</option>
                 <?php foreach ($tests as $test): ?>
-                    <option value="<?php echo (int)$test['id']; ?>"><?php echo htmlspecialchars((string)$test['title']); ?></option>
+                    <option value="<?php echo (int)$test['id']; ?>"<?php echo $form['test_id'] === (string)$test['id'] ? ' selected' : ''; ?>>
+                        <?php echo htmlspecialchars((string)$test['title']); ?>
+                    </option>
                 <?php endforeach; ?>
             </select>
 
             <div class="row g-2">
                 <div class="col-md-6">
-                    <label class="form-label">Attribute</label>
+                    <label class="form-label">Select Attribute</label>
                     <select class="form-select mb-3" name="attribute_id" id="video-attribute-select">
-                        <option value="">Optional attribute</option>
+                        <option value="">Select attribute</option>
                         <?php foreach ($attributes as $attribute): ?>
-                            <option value="<?php echo (int)$attribute['id']; ?>"><?php echo htmlspecialchars((string)$attribute['name']); ?></option>
+                            <option value="<?php echo (int)$attribute['id']; ?>"<?php echo $form['attribute_id'] === (string)$attribute['id'] ? ' selected' : ''; ?>>
+                                <?php echo htmlspecialchars((string)$attribute['name']); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Sub-attribute</label>
+                    <label class="form-label">Select Sub-attribute</label>
                     <select class="form-select mb-3" name="sub_attribute_id" id="video-sub-attribute-select">
-                        <option value="">Optional sub-attribute</option>
+                        <option value="">Select sub-attribute</option>
                         <?php foreach ($subAttributes as $subAttribute): ?>
-                            <option value="<?php echo (int)$subAttribute['id']; ?>" data-attribute-id="<?php echo (int)$subAttribute['attribute_id']; ?>">
+                            <option value="<?php echo (int)$subAttribute['id']; ?>" data-attribute-id="<?php echo (int)$subAttribute['attribute_id']; ?>"<?php echo $form['sub_attribute_id'] === (string)$subAttribute['id'] ? ' selected' : ''; ?>>
                                 <?php echo htmlspecialchars((string)$subAttribute['name']); ?>
                             </option>
                         <?php endforeach; ?>
@@ -255,100 +364,74 @@ require_once dirname(__DIR__) . '/includes_header.php';
                 </div>
             </div>
 
-            <label class="form-label">Video title</label>
-            <input class="form-control mb-3" name="title" required>
+            <label class="form-label">Paste Video URL</label>
+            <input class="form-control mb-3" name="video_url" placeholder="https://www.youtube.com/watch?v=..." value="<?php echo htmlspecialchars($form['video_url']); ?>" required>
 
-            <label class="form-label">Description</label>
-            <textarea class="form-control mb-3 eq-richtext" data-richtext name="description" rows="4"></textarea>
+            <label class="form-label">Status</label>
+            <select class="form-select mb-3" name="is_active">
+                <option value="1"<?php echo $form['is_active'] === '1' ? ' selected' : ''; ?>>Active</option>
+                <option value="0"<?php echo $form['is_active'] === '0' ? ' selected' : ''; ?>>Inactive</option>
+            </select>
 
-            <label class="form-label">YouTube URL</label>
-            <input class="form-control mb-3" name="video_url" placeholder="https://www.youtube.com/watch?v=..." required>
-
-            <div class="row g-2 mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">Duration (min)</label>
-                    <input class="form-control" type="number" name="duration" min="1" value="10">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Sequence</label>
-                    <input class="form-control" type="number" name="sequence_order" min="1" value="1">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Status</label>
-                    <select class="form-select" name="is_active">
-                        <option value="1">Active</option>
-                        <option value="0">Inactive</option>
-                    </select>
-                </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" name="is_featured" value="1" id="video-featured" <?php echo $form['is_featured'] === '1' ? 'checked' : ''; ?>>
+                <label class="form-check-label" for="video-featured">Featured (show on top)</label>
             </div>
 
-            <div class="row g-2 mb-3">
-                <div class="col-md-6">
-                    <label class="form-label">Language</label>
-                    <input class="form-control" name="language" value="en">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Visibility</label>
-                    <select class="form-select" name="visibility">
-                        <option value="public">public</option>
-                        <option value="enrolled_only">enrolled_only</option>
-                        <option value="private">private</option>
-                    </select>
-                </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary"><?php echo $form['edit_id'] !== '' ? 'Update Video' : 'Add Video'; ?></button>
+                <?php if ($form['edit_id'] !== ''): ?>
+                    <a class="btn btn-outline-secondary" href="<?php echo htmlspecialchars(url_for('backend/videos.php')); ?>">Cancel Edit</a>
+                <?php endif; ?>
             </div>
-
-            <label class="form-label">Version label</label>
-            <input class="form-control mb-3" name="version_label" placeholder="v1">
-
-            <label class="form-label">License type</label>
-            <input class="form-control mb-3" name="license_type" placeholder="Standard educational license">
-
-            <label class="form-label">Tags JSON</label>
-            <textarea class="form-control mb-3" name="tags_json" rows="2" placeholder='["youtube","algebra","test-prep"]'></textarea>
-
-            <button class="btn btn-primary">Save Video Lecture</button>
         </form>
     </div>
 
     <div class="col-lg-7">
         <div class="card p-3 shadow-sm">
-            <h5 class="mb-3">Recent Video Lectures</h5>
+            <h5 class="mb-3">Video Library</h5>
             <div class="table-responsive">
                 <table class="table align-middle">
                     <thead>
                         <tr>
-                            <th>Title</th>
-                            <th>Mapped To</th>
-                            <th>Meta</th>
+                            <th>Video</th>
+                            <th>Mapping</th>
+                            <th>Status</th>
+                            <th class="text-end">Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($videos as $video): ?>
                             <?php
-                                $mappedTo = [];
+                                $mapping = [];
                                 if (!empty($video['test_title'])) {
-                                    $mappedTo[] = 'Test: ' . (string)$video['test_title'];
+                                    $mapping[] = 'Test: ' . (string)$video['test_title'];
                                 }
                                 if (!empty($video['sub_attribute_name'])) {
-                                    $mappedTo[] = 'Skill: ' . (string)$video['sub_attribute_name'];
+                                    $mapping[] = 'Sub-attribute: ' . (string)$video['sub_attribute_name'];
                                 } elseif (!empty($video['attribute_name'])) {
-                                    $mappedTo[] = 'Attribute: ' . (string)$video['attribute_name'];
+                                    $mapping[] = 'Attribute: ' . (string)$video['attribute_name'];
+                                }
+                                $statusParts = [];
+                                $statusParts[] = !isset($video['is_active']) || (int)$video['is_active'] === 1 ? 'Active' : 'Inactive';
+                                if (!empty($video['is_featured'])) {
+                                    $statusParts[] = 'Featured';
                                 }
                             ?>
                             <tr>
                                 <td>
                                     <strong><?php echo htmlspecialchars((string)$video['title']); ?></strong>
-                                    <div class="small text-muted"><?php echo htmlspecialchars((string)$video['course_title']); ?></div>
+                                    <div class="small text-muted"><?php echo htmlspecialchars((string)$video['video_url']); ?></div>
                                 </td>
-                                <td><?php echo htmlspecialchars($mappedTo ? implode(' · ', $mappedTo) : 'General library'); ?></td>
-                                <td class="small text-muted">
-                                    <?php echo (int)($video['duration'] ?? 0); ?> min
-                                    · #<?php echo (int)($video['sequence_order'] ?? 0); ?>
+                                <td class="small text-muted"><?php echo htmlspecialchars($mapping ? implode(' · ', $mapping) : 'General library'); ?></td>
+                                <td class="small"><?php echo htmlspecialchars(implode(' · ', $statusParts)); ?></td>
+                                <td class="text-end">
+                                    <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars(url_for('backend/videos.php?edit=' . (int)$video['id'])); ?>">Edit</a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                         <?php if (!$videos): ?>
-                            <tr><td colspan="3" class="text-muted">No videos added yet.</td></tr>
+                            <tr><td colspan="4" class="text-muted">No videos added yet.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -371,7 +454,8 @@ require_once dirname(__DIR__) . '/includes_header.php';
         options.forEach(function (option) {
             option.hidden = attributeId !== '' && option.getAttribute('data-attribute-id') !== attributeId;
         });
-        if (subAttributeSelect.selectedOptions[0] && subAttributeSelect.selectedOptions[0].hidden) {
+        const selected = subAttributeSelect.selectedOptions[0];
+        if (selected && selected.hidden) {
             subAttributeSelect.value = '';
         }
     }
