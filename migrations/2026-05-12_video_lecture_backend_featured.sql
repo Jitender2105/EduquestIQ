@@ -1,6 +1,22 @@
 -- EduquestIQ video backend featured flag
 -- Adds a featured toggle and relaxes course mapping requirement for video lectures.
 
+SET @has_active_col := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'video_lectures'
+    AND column_name = 'is_active'
+);
+SET @sql := IF(
+  @has_active_col = 0,
+  'ALTER TABLE video_lectures ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER sequence_order',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SET @has_featured_col := (
   SELECT COUNT(*)
   FROM information_schema.columns
