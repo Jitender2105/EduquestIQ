@@ -621,7 +621,7 @@ details[open] .eq-collapsible-icon {
     </div>
 
     <div class="eq-page-head text-start mt-5">
-        <h3>Paid Practice Papers</h3>
+        <h3>Featured Practice Papers</h3>
         <p class="subtitle">Purchase downloadable preparation PDFs in advance and keep them accessible from this catalogue.</p>
     </div>
     <div class="row g-3">
