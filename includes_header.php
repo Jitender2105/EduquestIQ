@@ -1122,10 +1122,7 @@ $metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'Eduquest
         <div class="collapse navbar-collapse" id="mainNav">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('index.php')); ?>">Home</a></li>
-                <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('courses.php')); ?>">Courses</a></li>
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('tests.php')); ?>">Tests</a></li>
-                <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('learning_paths.php')); ?>">Learning Paths</a></li>
-                <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('community.php')); ?>">Community</a></li>
                 <?php if ($authUser && in_array($authUser['role'], ['parent', 'school_admin'], true)): ?>
                     <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('parent_children.php')); ?>">Parent Links</a></li>
                 <?php endif; ?>
@@ -1134,7 +1131,6 @@ $metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'Eduquest
                 <?php endif; ?>
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('articles.php')); ?>">Articles</a></li>
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('video_lectures.php')); ?>">Video Lectures</a></li>
-                <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('materials.php')); ?>">Study Materials</a></li>
             </ul>
             <ul class="navbar-nav ms-auto">
                 <?php if ($authUser): ?>

@@ -304,11 +304,18 @@ CREATE TABLE course_enrollments (
 CREATE TABLE video_lectures (
   id INT PRIMARY KEY AUTO_INCREMENT,
   course_id INT NOT NULL,
+  test_id INT NULL,
+  attribute_id INT NULL,
+  sub_attribute_id INT NULL,
   title VARCHAR(150),
+  description TEXT NULL,
   video_url VARCHAR(255),
   duration INT,
   sequence_order INT,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
+  KEY idx_video_test (test_id),
+  KEY idx_video_attr (attribute_id),
+  KEY idx_video_subattr (sub_attribute_id),
   CONSTRAINT fk_vlec_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
