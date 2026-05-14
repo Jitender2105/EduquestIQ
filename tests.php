@@ -982,6 +982,8 @@ details[open] .eq-collapsible-icon {
                     name: 'EduquestIQ',
                     description: 'EduquestIQ bulk purchase',
                     order_id: order.order_id,
+                    callback_url: <?php echo json_encode(url_for('razorpay_return.php?source=tests')); ?>,
+                    redirect: true,
                     prefill: {
                         name: <?php echo json_encode((string)$authUser['name']); ?>,
                         email: <?php echo json_encode((string)$authUser['email']); ?>

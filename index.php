@@ -1249,6 +1249,8 @@ if (window.jQuery && jQuery.fn.select2) {
             name: 'EduquestIQ',
             description: 'EduquestIQ featured purchase',
             order_id: order.order_id,
+            callback_url: <?php echo json_encode(url_for('razorpay_return.php?source=home')); ?>,
+            redirect: true,
             prefill: {
                 name: <?php echo json_encode((string)$authUser['name']); ?>,
                 email: <?php echo json_encode((string)$authUser['email']); ?>

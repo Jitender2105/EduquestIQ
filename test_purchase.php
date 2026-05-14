@@ -216,6 +216,8 @@ if (!payment_gateway_ready()) {
                 name: 'EduquestIQ',
                 description: <?php echo json_encode((string)$test['title']); ?>,
                 order_id: order.order_id,
+                callback_url: <?php echo json_encode(url_for('razorpay_return.php?source=test_purchase')); ?>,
+                redirect: true,
                 prefill: {
                     name: <?php echo json_encode((string)$user['name']); ?>,
                     email: <?php echo json_encode((string)$user['email']); ?>
