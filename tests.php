@@ -914,6 +914,32 @@ details[open] .eq-collapsible-icon {
                 }
             }
 
+            function isMobileCheckoutFlow() {
+                return window.matchMedia('(max-width: 991px)').matches
+                    || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent || '');
+            }
+
+            function submitMobileCheckout(selected) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = <?php echo json_encode(url_for('bulk_purchase_checkout.php')); ?>;
+
+                const csrfInput = document.createElement('input');
+                csrfInput.type = 'hidden';
+                csrfInput.name = 'csrf_token';
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+
+                const itemsInput = document.createElement('input');
+                itemsInput.type = 'hidden';
+                itemsInput.name = 'items_json';
+                itemsInput.value = JSON.stringify(selected);
+                form.appendChild(itemsInput);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
+
             async function postJson(url, payload) {
                 const response = await fetch(url, {
                     method: 'POST',
@@ -951,6 +977,12 @@ details[open] .eq-collapsible-icon {
                 });
                 if (!selected.length) {
                     showMessage('warning', 'Select at least one paid item to buy.');
+                    return;
+                }
+
+                if (isMobileCheckoutFlow()) {
+                    showMessage('info', 'Redirecting to secure mobile checkout...');
+                    submitMobileCheckout(selected);
                     return;
                 }
 
