@@ -469,6 +469,10 @@ details[open] .eq-collapsible-icon {
     <?php if ($authUser && $authUser['role'] === 'student'): ?>
         <input type="hidden" id="payment-csrf-token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
         <div id="payment-message" class="alert d-none" role="alert"></div>
+        <form method="post" action="<?php echo htmlspecialchars(url_for('bulk_purchase_checkout.php')); ?>" id="bulk-checkout-form" class="d-none">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+            <input type="hidden" name="items_json" id="bulk-checkout-items-json" value="[]">
+        </form>
         <div class="eq-catalog-intro">
             <div class="eq-catalog-intro-grid">
                 <div class="eq-catalog-card">
@@ -775,9 +779,6 @@ details[open] .eq-collapsible-icon {
         </details>
     </div>
 
-    <?php if ($authUser && $authUser['role'] === 'student'): ?>
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <?php endif; ?>
     <script>
     (function () {
         const nodes = Array.from(document.querySelectorAll('.js-buy-countdown'));
@@ -826,13 +827,15 @@ details[open] .eq-collapsible-icon {
         (function () {
             const cartBar = document.getElementById('test-cart-bar');
             const button = document.getElementById('bulk-buy-button');
+            const checkoutForm = document.getElementById('bulk-checkout-form');
+            const checkoutItemsInput = document.getElementById('bulk-checkout-items-json');
             const csrfToken = document.getElementById('payment-csrf-token') ? document.getElementById('payment-csrf-token').value : '';
             const message = document.getElementById('payment-message');
             const countNode = document.getElementById('selected-count');
             const totalNode = document.getElementById('selected-total');
             const itemsNode = document.getElementById('selected-items');
             const storageKey = 'eduquestiq_bulk_purchase_cart_v1';
-            if (!button || !message) return;
+            if (!button || !message || !checkoutForm || !checkoutItemsInput) return;
 
             function showMessage(type, text) {
                 message.className = 'alert alert-' + type;
@@ -920,38 +923,8 @@ details[open] .eq-collapsible-icon {
             }
 
             function submitMobileCheckout(selected) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = <?php echo json_encode(url_for('bulk_purchase_checkout.php')); ?>;
-
-                const csrfInput = document.createElement('input');
-                csrfInput.type = 'hidden';
-                csrfInput.name = 'csrf_token';
-                csrfInput.value = csrfToken;
-                form.appendChild(csrfInput);
-
-                const itemsInput = document.createElement('input');
-                itemsInput.type = 'hidden';
-                itemsInput.name = 'items_json';
-                itemsInput.value = JSON.stringify(selected);
-                form.appendChild(itemsInput);
-
-                document.body.appendChild(form);
-                form.submit();
-            }
-
-            async function postJson(url, payload) {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
-                    credentials: 'same-origin',
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json().catch(function () { return {}; });
-                if (!response.ok || data.success === false) {
-                    throw new Error(data.error || 'Payment request failed.');
-                }
-                return data;
+                checkoutItemsInput.value = JSON.stringify(selected);
+                checkoutForm.submit();
             }
 
             document.querySelectorAll('.bulk-purchase-item').forEach(function (input) {
@@ -980,75 +953,11 @@ details[open] .eq-collapsible-icon {
                     return;
                 }
 
-                if (isMobileCheckoutFlow()) {
-                    showMessage('info', 'Redirecting to secure mobile checkout...');
-                    submitMobileCheckout(selected);
-                    return;
-                }
-
                 button.disabled = true;
-                showMessage('info', 'Preparing secure bulk checkout...');
-                let order;
-                try {
-                    order = await postJson(<?php echo json_encode(url_for('api/create-order.php')); ?>, {
-                        amount: 0,
-                        currency: <?php echo json_encode(payment_gateway_currency()); ?>,
-                        receipt: 'bulk-purchase',
-                        items: selected
-                    });
-                } catch (error) {
-                    showMessage('danger', error.message);
-                    button.disabled = false;
-                    return;
-                }
-
-                if (order.already_paid && order.redirect_url) {
-                    window.location.href = order.redirect_url;
-                    return;
-                }
-
-                const rzp = new Razorpay({
-                    key: order.key_id,
-                    amount: order.amount,
-                    currency: order.currency,
-                    name: 'EduquestIQ',
-                    description: 'EduquestIQ bulk purchase',
-                    order_id: order.order_id,
-                    callback_url: <?php echo json_encode(url_for('razorpay_return.php?source=tests')); ?>,
-                    redirect: true,
-                    prefill: {
-                        name: <?php echo json_encode((string)$authUser['name']); ?>,
-                        email: <?php echo json_encode((string)$authUser['email']); ?>
-                    },
-                    handler: async function (response) {
-                        try {
-                            const verify = await postJson(<?php echo json_encode(url_for('api/verify-payment.php')); ?>, {
-                                razorpay_order_id: response.razorpay_order_id || '',
-                                razorpay_payment_id: response.razorpay_payment_id || '',
-                                razorpay_signature: response.razorpay_signature || ''
-                            });
-                            clearSelection();
-                            showMessage('success', 'Payment verified. Refreshing your catalogue...');
-                            window.location.href = verify.redirect_url || <?php echo json_encode(url_for('tests.php?purchase=success')); ?>;
-                        } catch (error) {
-                            showMessage('danger', error.message);
-                            button.disabled = false;
-                        }
-                    },
-                    theme: {color: '#4374ff'},
-                    modal: {
-                        ondismiss: function () {
-                            showMessage('warning', 'Payment was cancelled. You can try again when ready.');
-                            button.disabled = false;
-                        }
-                    }
-                });
-                rzp.on('payment.failed', function (response) {
-                    const reason = response && response.error && response.error.description ? response.error.description : 'Payment failed. Please try again.';
-                    showMessage('danger', reason);
-                    button.disabled = false;
-                });
-                rzp.open();
+                showMessage('info', isMobileCheckoutFlow()
+                    ? 'Redirecting to secure mobile checkout...'
+                    : 'Redirecting to secure checkout...');
+                submitMobileCheckout(selected);
             });
         })();
         </script>
