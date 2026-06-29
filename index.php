@@ -605,12 +605,12 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
         <div>
             <div class="eq-chip">Trusted by 10,000+ students worldwide</div>
             <h1>
-                Master Skills Beyond
-                <span class="accent">Traditional Learning</span>
+                STEM Test, Olympiad and
+                <span class="accent">Competitive Exam Prep</span>
             </h1>
             <p>
-                Join the EduquestIQ platform where academic excellence meets creative innovation,
-                leadership development, and technical mastery. Designed for students aged 6-20.
+                Join EduquestIQ for grade-wise STEM tests, Olympiad practice, competitive exam preparation,
+                SIRA skill reports, and holistic readiness for students aged 6-20.
             </p>
             <div class="eq-home-hero-actions">
                 <a href="<?php echo htmlspecialchars(url_for('register.php')); ?>" class="btn btn-light btn-lg">Start Your Journey</a>
@@ -747,7 +747,7 @@ $hasFeaturedAssessments = $hasFeaturedTests || $hasFeaturedPracticePapers;
 
     <div class="row g-3">
         <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Video Lectures</h6><p>High-quality video content with interactive elements and progress tracking.</p><a href="<?php echo htmlspecialchars(url_for('video_lectures.php')); ?>">500+ Videos</a></div></div>
-        <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Study Materials</h6><p>Comprehensive resources including PDFs, guides, and reference documents.</p><a href="<?php echo htmlspecialchars(url_for('materials.php')); ?>">1000+ Resources</a></div></div>
+        <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Study Materials</h6><p>Class-wise free and premium PDFs, guides, and reference documents.</p><a href="<?php echo htmlspecialchars(url_for('study-material')); ?>">Open Library</a></div></div>
         <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Progress Tracking</h6><p>Real-time analytics and personalized insights for continuous improvement.</p><a href="<?php echo htmlspecialchars(url_for('dashboard.php')); ?>">95% Success Rate</a></div></div>
         <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Achievement System</h6><p>Gamified learning with badges, certificates, and recognition programs.</p><a href="<?php echo htmlspecialchars(url_for('dashboard.php')); ?>">100+ Badges</a></div></div>
         <div class="col-md-6 col-xl-4"><div class="eq-platform-card"><h6>Flexible Learning</h6><p>Learn at your own pace with 24/7 access to all platform features.</p><a href="<?php echo htmlspecialchars(url_for('learning_paths.php')); ?>">24/7 Access</a></div></div>

@@ -5,7 +5,7 @@ DirectoryIndex index.php
     RewriteEngine On
 
     RewriteCond %{THE_REQUEST} \s/+backend/([^\s?]+)\.php(?:[\s?]|$) [NC]
-    RewriteRule ^ backend/%1 [R=301,L,NE]
+    RewriteRule ^ /backend/%1 [R=301,L,NE]
 
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d

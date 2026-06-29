@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once dirname(__DIR__) . '/includes_payments.php';
 
 $user = backend_user();
 $pdo = get_pdo();
@@ -941,7 +942,6 @@ require_once dirname(__DIR__) . '/includes_header.php';
     </div>
 </div>
 
-<?php require __DIR__ . '/richtext.php'; ?>
 <script>
 (function () {
     function parseJsonAttribute(value, fallback) {
@@ -1221,6 +1221,110 @@ require_once dirname(__DIR__) . '/includes_header.php';
 
     document.getElementById('test-access-type')?.addEventListener('change', syncPriceField);
     syncPriceField();
+})();
+</script>
+
+<?php require __DIR__ . '/richtext.php'; ?>
+<script>
+if (window.EQRichText && typeof window.EQRichText.init === 'function') {
+    window.EQRichText.init(document);
+    window.setTimeout(function () {
+        window.EQRichText.init(document);
+    }, 250);
+}
+
+(function () {
+    const toolbarOptions = [
+        ['bold', 'italic', 'underline', 'strike'],
+        ['blockquote', 'code-block'],
+        ['link', 'image', 'video'],
+        [{ header: 1 }, { header: 2 }],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        [{ script: 'sub' }, { script: 'super' }],
+        [{ indent: '-1' }, { indent: '+1' }],
+        [{ direction: 'rtl' }],
+        [{ size: ['small', false, 'large', 'huge'] }],
+        [{ header: [1, 2, 3, 4, 5, 6, false] }],
+        [{ color: [] }, { background: [] }],
+        [{ font: [] }],
+        [{ align: [] }],
+        ['clean']
+    ];
+
+    function initTextarea(textarea) {
+        if (!textarea || textarea.dataset.quillReady === '1' || typeof window.Quill !== 'function') {
+            return;
+        }
+
+        textarea.dataset.quillReady = '1';
+        const editor = document.createElement('div');
+        editor.className = 'eq-quill-editor';
+        editor.innerHTML = String(textarea.value || textarea.getAttribute('value') || '');
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'eq-quill-wrap mb-2';
+        textarea.parentNode.insertBefore(wrapper, textarea);
+        wrapper.appendChild(editor);
+        textarea.style.display = 'none';
+        wrapper.insertAdjacentElement('afterend', textarea);
+
+        const quill = new window.Quill(editor, {
+            theme: 'snow',
+            modules: { toolbar: toolbarOptions }
+        });
+
+        function sync() {
+            textarea.value = quill.root.innerHTML;
+        }
+
+        quill.on('text-change', sync);
+        textarea._eqRichTextSync = sync;
+        sync();
+    }
+
+    function initAll(rootNode) {
+        if (typeof window.Quill !== 'function') {
+            return;
+        }
+        (rootNode || document).querySelectorAll('textarea[data-richtext]').forEach(initTextarea);
+    }
+
+    function loadQuillThenInit() {
+        if (typeof window.Quill === 'function') {
+            initAll(document);
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js';
+        script.onload = function () {
+            initAll(document);
+        };
+        document.head.appendChild(script);
+    }
+
+    if (typeof MutationObserver === 'function') {
+        new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node && node.nodeType === 1) {
+                        initAll(node.matches && node.matches('textarea[data-richtext]') ? node.parentNode : node);
+                    }
+                });
+            });
+        }).observe(document.documentElement, { childList: true, subtree: true });
+    }
+
+    document.getElementById('test-builder-form')?.addEventListener('submit', function () {
+        document.querySelectorAll('textarea[data-richtext]').forEach(function (textarea) {
+            if (typeof textarea._eqRichTextSync === 'function') {
+                textarea._eqRichTextSync();
+            }
+        });
+    });
+
+    loadQuillThenInit();
+    window.setTimeout(loadQuillThenInit, 500);
 })();
 </script>
 

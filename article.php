@@ -70,6 +70,44 @@ $pageDescription = $article
 
 $GLOBALS['metaTitleOverride'] = $pageTitle;
 $GLOBALS['metaDescriptionOverride'] = $pageDescription;
+function article_absolute_url(string $path): string
+{
+    if (preg_match('#^https?://#i', $path)) {
+        return $path;
+    }
+    $origin = defined('BASE_URL') && trim((string)BASE_URL) !== ''
+        ? rtrim((string)BASE_URL, '/')
+        : 'https://eduquestiq.com';
+    return $origin . '/' . ltrim($path, '/');
+}
+
+if ($article) {
+    $GLOBALS['metaTypeOverride'] = 'article';
+    if (!empty($article['image_path'])) {
+        $GLOBALS['metaImageOverride'] = article_absolute_url(url_for((string)$article['image_path']));
+    }
+    $GLOBALS['structuredData'] = [
+        [
+            '@context' => 'https://schema.org',
+            '@type' => 'Article',
+            'headline' => (string)$article['title'],
+            'description' => $pageDescription,
+            'datePublished' => (string)($article['created_at'] ?? ''),
+            'author' => [
+                '@type' => 'Person',
+                'name' => (string)($article['creator_name'] ?? 'EduquestIQ'),
+            ],
+            'publisher' => [
+                '@type' => 'Organization',
+                'name' => 'EduquestIQ',
+                'logo' => [
+                    '@type' => 'ImageObject',
+                    'url' => article_absolute_url(url_for('assets/img/eduquestiq-logo-wide.png')),
+                ],
+            ],
+        ],
+    ];
+}
 
 require_once __DIR__ . '/includes_header.php';
 

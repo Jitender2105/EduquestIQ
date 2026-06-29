@@ -514,6 +514,23 @@ switch ($user['role']) {
                 }, $attemptRows),
             ],
         ];
+        $response['roleSections'] = [
+            [
+                'title' => 'Parent action plan',
+                'paragraphs' => [
+                    $child ? ('For ' . $child['name'] . ', use the lowest attribute score as the weekly practice focus and review one recent test together before the next attempt.') : 'Link a child account to unlock progress planning and weekly learning suggestions.',
+                    'A steady rhythm works best: one short practice session, one revision conversation, and one test review each week.',
+                ],
+            ],
+            [
+                'title' => 'Home support signals',
+                'items' => [
+                    'Average score: ' . number_format($avgScore, 1),
+                    'Tests attempted: ' . $attemptCount,
+                    'Skill areas tracked: ' . count($attrLabels),
+                ],
+            ],
+        ];
         $response['hideSections'] = ['community-panel', 'achievements-panel'];
 
         json_result($response);
@@ -636,6 +653,23 @@ switch ($user['role']) {
                 }, $testRows),
             ],
         ];
+        $response['roleSections'] = [
+            [
+                'title' => 'Teaching focus',
+                'paragraphs' => [
+                    'Review the test with the lowest average score first and assign a short remedial practice set before introducing a new topic.',
+                    'Use the ranking list to identify students who need feedback and students who can support peer learning in the next class activity.',
+                ],
+            ],
+            [
+                'title' => 'Classroom signals',
+                'items' => [
+                    'Courses managed: ' . $teacherCourseCount,
+                    'Tests reviewed: ' . count($testRows),
+                    'Ranked students: ' . count($rankingRows),
+                ],
+            ],
+        ];
 
         json_result($response);
         break;
@@ -728,6 +762,23 @@ switch ($user['role']) {
                     ['primary' => 'Attempts', 'secondary' => (string)$attemptCount],
                 ],
                 'emptyText' => 'No platform data available.',
+            ],
+        ];
+        $response['roleSections'] = [
+            [
+                'title' => 'Growth focus',
+                'paragraphs' => [
+                    'Keep the operational review tied to learning outcomes: user growth, active accounts, test volume, and skill distribution should move together.',
+                    'If attempts rise but skill averages stay flat, refresh the question mix, add targeted study material, and promote follow-up practice by grade.',
+                ],
+            ],
+            [
+                'title' => 'Admin signals',
+                'items' => [
+                    'Active user ratio: ' . ($totalUsers > 0 ? number_format(($activeUsers / $totalUsers) * 100, 1) . '%' : '0%'),
+                    'Attempt volume: ' . $attemptCount,
+                    'Students tracked: ' . $studentCount,
+                ],
             ],
         ];
 

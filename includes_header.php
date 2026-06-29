@@ -10,19 +10,19 @@ $authUser = current_user();
 $scriptPath = ltrim((string)($_SERVER['SCRIPT_NAME'] ?? 'index.php'), '/');
 $currentPage = basename($scriptPath);
 $pageMeta = [
-    'index.php' => ['EduquestIQ | Skills-First Learning Platform', 'Master academics, creativity, leadership, and technical skills with dynamic courses, tests, and progress dashboards.'],
+    'index.php' => ['EduquestIQ | STEM Olympiad & Skills-First Test Prep', 'Prepare for STEM tests, Olympiad exams, competitive exams, SIRA assessments, and grade-wise academic readiness with EduquestIQ.'],
     'about.php' => ['About EduquestIQ | What We Do', 'Learn how EduquestIQ helps students, parents, teachers, and schools drive measurable learning outcomes.'],
     'courses.php' => ['Courses | EduquestIQ', 'Browse skill-mapped courses, enroll, and continue learning through videos, tests, and study resources.'],
     'course.php' => ['Course Details | EduquestIQ', 'View course curriculum, lectures, materials, and progress in one place.'],
-    'tests.php' => ['Tests & Assessments | EduquestIQ', 'Attempt mapped assessments that update attribute and sub-attribute level skill scores.'],
+    'tests.php' => ['STEM Tests, Olympiad Practice & Competitive Exams | EduquestIQ', 'Explore STEM tests, Olympiad preparation, practice papers, and competitive exam readiness for Grade 2, Grade 3, Grade 4 and higher classes.'],
     'test_attempt.php' => ['Attempt Test | EduquestIQ', 'Complete MCQ and subjective assessments with live scoring and skill impact.'],
     'sira_report.php' => ['SIRA Report | EduquestIQ', 'View personalized attribute scores, question statuses, and learning recommendations for each assessment.'],
     'learning_paths.php' => ['Learning Paths | EduquestIQ', 'Follow structured course journeys or learn self-paced with saved progress.'],
     'community.php' => ['Community Learning | EduquestIQ', 'Collaborate with peers through posts, comments, and likes in the EduquestIQ community.'],
-    'articles.php' => ['Articles | EduquestIQ', 'Explore learning insights, study tips, and curated education resources.'],
+    'articles.php' => ['STEM, Olympiad & Exam Prep Articles | EduquestIQ', 'Read STEM test tips, Olympiad preparation guides, grade-wise competitive exam strategies, and student readiness insights.'],
     'article.php' => ['Article | EduquestIQ', 'Read curated learning articles with FAQs, related content, and latest updates.'],
     'video_lectures.php' => ['Video Lectures | EduquestIQ', 'Access course-linked video lessons with sequence and duration tracking.'],
-    'materials.php' => ['Study Materials | EduquestIQ', 'Find PDFs, DOCs, PPTs, and links organized by course and skill domain.'],
+    'materials.php' => ['Study Material by Class & Skill | EduquestIQ', 'Find free and paid PDFs, DOCs, PPTs, and links organized by class, attribute, sub-attribute, and chapter.'],
     'dashboard.php' => ['Dashboard | EduquestIQ', 'Track progress, skills, achievements, and performance through dynamic role-based dashboards.'],
     'backend.php' => ['Backend Management | EduquestIQ', 'Manage LMS entities including questions, attributes, courses, and content modules.'],
     'manage_lms.php' => ['LMS Management Console | EduquestIQ', 'Launch separate backend URLs for tests, questions, courses, content, and learning modules.'],
@@ -53,14 +53,107 @@ $pageMeta = [
 $meta = $pageMeta[$scriptPath] ?? $pageMeta[$currentPage] ?? null;
 $metaTitle = $GLOBALS['metaTitleOverride'] ?? ($meta[0] ?? 'EduquestIQ | Learning Platform');
 $metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'EduquestIQ is a skills-first LMS for students, parents, teachers, and school administrators.');
+
+function eq_current_origin(): string
+{
+    if (defined('BASE_URL') && trim((string)BASE_URL) !== '') {
+        return rtrim((string)BASE_URL, '/');
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = (string)($_SERVER['HTTP_HOST'] ?? 'eduquestiq.com');
+    return $scheme . '://' . $host;
+}
+
+function eq_absolute_url(string $path): string
+{
+    if (preg_match('#^https?://#i', $path)) {
+        return $path;
+    }
+    return eq_current_origin() . '/' . ltrim($path, '/');
+}
+
+function eq_canonical_path(): string
+{
+    $uri = parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/';
+    if ($uri !== '/' && str_ends_with($uri, '.php')) {
+        $uri = substr($uri, 0, -4);
+    }
+    return $uri === '' ? '/' : $uri;
+}
+
+$canonicalUrl = $GLOBALS['canonicalUrlOverride'] ?? eq_absolute_url(eq_canonical_path());
+$metaImage = $GLOBALS['metaImageOverride'] ?? eq_absolute_url(url_for('assets/img/sira-assessment-visual.png'));
+$metaType = $GLOBALS['metaTypeOverride'] ?? 'website';
+$robotsNoIndexPaths = [
+    'login.php',
+    'dashboard.php',
+    'backend.php',
+    'manage_lms.php',
+    'student_report.php',
+    'parent_children.php',
+    'teacher_feedback.php',
+    'test_attempt.php',
+    'test_submit.php',
+    'test_purchase.php',
+    'bulk_purchase_checkout.php',
+    'material_upload.php',
+];
+$isPrivatePath = str_starts_with($scriptPath, 'backend/')
+    || str_starts_with($scriptPath, 'api/')
+    || in_array($scriptPath, $robotsNoIndexPaths, true)
+    || in_array($currentPage, $robotsNoIndexPaths, true);
+$robotsContent = $GLOBALS['robotsOverride'] ?? ($isPrivatePath ? 'noindex, nofollow, noarchive' : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
+$structuredData = $GLOBALS['structuredData'] ?? [];
+if (!is_array($structuredData)) {
+    $structuredData = [];
+}
+array_unshift($structuredData, [
+    '@context' => 'https://schema.org',
+    '@type' => 'Organization',
+    'name' => 'EduquestIQ',
+    'url' => eq_absolute_url('/'),
+    'logo' => eq_absolute_url(url_for('assets/img/eduquestiq-logo-wide.png')),
+    'sameAs' => [],
+]);
+array_unshift($structuredData, [
+    '@context' => 'https://schema.org',
+    '@type' => 'WebSite',
+    'name' => 'EduquestIQ',
+    'url' => eq_absolute_url('/'),
+    'potentialAction' => [
+        '@type' => 'SearchAction',
+        'target' => eq_absolute_url('/articles') . '?q={search_term_string}',
+        'query-input' => 'required name=search_term_string',
+    ],
+]);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-5PKKHDVZ');</script>
+    <!-- End Google Tag Manager -->
     <title><?php echo htmlspecialchars($metaTitle); ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="<?php echo htmlspecialchars($metaDescription); ?>">
+    <meta name="robots" content="<?php echo htmlspecialchars($robotsContent); ?>">
+    <link rel="canonical" href="<?php echo htmlspecialchars($canonicalUrl); ?>">
+    <meta property="og:site_name" content="EduquestIQ">
+    <meta property="og:type" content="<?php echo htmlspecialchars($metaType); ?>">
+    <meta property="og:title" content="<?php echo htmlspecialchars($metaTitle); ?>">
+    <meta property="og:description" content="<?php echo htmlspecialchars($metaDescription); ?>">
+    <meta property="og:url" content="<?php echo htmlspecialchars($canonicalUrl); ?>">
+    <meta property="og:image" content="<?php echo htmlspecialchars($metaImage); ?>">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="<?php echo htmlspecialchars($metaTitle); ?>">
+    <meta name="twitter:description" content="<?php echo htmlspecialchars($metaDescription); ?>">
+    <meta name="twitter:image" content="<?php echo htmlspecialchars($metaImage); ?>">
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars(url_for('assets/img/favicon.png')); ?>">
     <link rel="apple-touch-icon" href="<?php echo htmlspecialchars(url_for('assets/img/favicon.png')); ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -69,6 +162,9 @@ $metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'Eduquest
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <?php foreach ($structuredData as $jsonLd): ?>
+        <script type="application/ld+json"><?php echo json_encode($jsonLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?></script>
+    <?php endforeach; ?>
     <style>
         :root {
             --eq-bg: #f3f6ff;
@@ -1110,6 +1206,10 @@ $metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'Eduquest
     </style>
 </head>
 <body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5PKKHDVZ"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
 <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
     <div class="container">
         <a class="navbar-brand" href="<?php echo htmlspecialchars(url_for('index.php')); ?>">
@@ -1131,6 +1231,7 @@ $metaDescription = $GLOBALS['metaDescriptionOverride'] ?? ($meta[1] ?? 'Eduquest
                 <?php endif; ?>
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('articles.php')); ?>">Articles</a></li>
                 <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('video_lectures.php')); ?>">Video Lectures</a></li>
+                <li class="nav-item"><a class="nav-link" href="<?php echo htmlspecialchars(url_for('study-material')); ?>">Study Material</a></li>
             </ul>
             <ul class="navbar-nav ms-auto">
                 <?php if ($authUser): ?>

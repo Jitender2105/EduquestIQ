@@ -64,7 +64,8 @@ try {
 
     $testPurchases = test_purchase_rows_by_order($pdo, $orderId);
     $paperPurchases = practice_paper_purchase_rows_by_order($pdo, $orderId);
-    if (!$testPurchases && !$paperPurchases) {
+    $materialPurchases = study_material_purchase_rows_by_order($pdo, $orderId);
+    if (!$testPurchases && !$paperPurchases && !$materialPurchases) {
         razorpay_webhook_response(200, ['success' => true, 'ignored' => true, 'reason' => 'Order not tracked by EduquestIQ.']);
     }
 
@@ -73,6 +74,9 @@ try {
         $expectedAmountPaise += amount_in_paise((float)($purchase['amount_inr'] ?? 0));
     }
     foreach ($paperPurchases as $purchase) {
+        $expectedAmountPaise += amount_in_paise((float)($purchase['amount_inr'] ?? 0));
+    }
+    foreach ($materialPurchases as $purchase) {
         $expectedAmountPaise += amount_in_paise((float)($purchase['amount_inr'] ?? 0));
     }
 
@@ -116,6 +120,18 @@ try {
             );
         }
 
+        foreach ($materialPurchases as $purchase) {
+            study_material_purchase_mark_paid(
+                $pdo,
+                (int)$purchase['study_material_id'],
+                (int)$purchase['student_id'],
+                $orderId,
+                $paymentId,
+                'razorpay-webhook:' . $eventType,
+                (float)($purchase['amount_inr'] ?? 0)
+            );
+        }
+
         razorpay_webhook_response(200, ['success' => true, 'status' => 'paid']);
     }
 
@@ -129,6 +145,13 @@ try {
         }
         foreach ($paperPurchases as $purchase) {
             practice_paper_purchase_mark_failed($pdo, (int)$purchase['practice_paper_id'], (int)$purchase['student_id'], $orderId, $paymentId !== '' ? $paymentId : null, [
+                'event' => $eventType,
+                'payment_status' => $paymentStatus,
+                'payment_error' => is_array($payment) ? ($payment['error_description'] ?? null) : null,
+            ]);
+        }
+        foreach ($materialPurchases as $purchase) {
+            study_material_purchase_mark_failed($pdo, (int)$purchase['study_material_id'], (int)$purchase['student_id'], $orderId, $paymentId !== '' ? $paymentId : null, [
                 'event' => $eventType,
                 'payment_status' => $paymentStatus,
                 'payment_error' => is_array($payment) ? ($payment['error_description'] ?? null) : null,

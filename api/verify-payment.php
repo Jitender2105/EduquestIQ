@@ -70,7 +70,8 @@ try {
     } else {
         $testPurchases = test_purchase_rows_by_order($pdo, $orderId);
         $paperPurchases = practice_paper_purchase_rows_by_order($pdo, $orderId);
-        if (!$testPurchases && !$paperPurchases) {
+        $materialPurchases = study_material_purchase_rows_by_order($pdo, $orderId);
+        if (!$testPurchases && !$paperPurchases && !$materialPurchases) {
             api_verify_json_response(400, ['success' => false, 'error' => 'Payment order mismatch.']);
         }
 
@@ -104,7 +105,24 @@ try {
             );
         }
 
-        $redirectUrl = url_for('tests.php?purchase=success');
+        foreach ($materialPurchases as $purchase) {
+            if ((int)$purchase['student_id'] !== (int)$user['sub']) {
+                api_verify_json_response(400, ['success' => false, 'error' => 'Payment order mismatch.']);
+            }
+            study_material_purchase_mark_paid(
+                $pdo,
+                (int)$purchase['study_material_id'],
+                (int)$user['sub'],
+                $orderId,
+                $paymentId,
+                $signature,
+                (float)($purchase['amount_inr'] ?? 0)
+            );
+        }
+
+        $redirectUrl = $materialPurchases && !$testPurchases && !$paperPurchases
+            ? url_for('study-material?purchase=success')
+            : url_for('tests.php?purchase=success');
     }
 
     api_verify_json_response(200, [

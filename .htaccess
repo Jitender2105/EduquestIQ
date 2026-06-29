@@ -14,6 +14,15 @@ DirectoryIndex index.php
     RewriteCond %{HTTP_HOST} ^backend\. [NC]
     RewriteRule ^$ backend/index.php [L]
 
+    # Search engine discovery endpoints.
+    RewriteRule ^sitemap\.xml$ sitemap.php [L,QSA]
+
+    # SEO landing aliases for high-intent test keywords.
+    RewriteRule ^(stem-test|olympiad-exam|competitive-exam-grade-[234])/?$ router.php [L,QSA]
+
+    # Public study material catalogue.
+    RewriteRule ^study-material/?$ materials.php [L,QSA]
+
     # Explicit backend module routes on the main domain.
     RewriteRule ^backend/([^./]+)/?$ backend/$1.php [L,QSA]
 
@@ -28,6 +37,7 @@ DirectoryIndex index.php
 
     # Protect sensitive files
     RewriteRule ^(\.env|config\.php|config\.local\.php|schema\.sql|upgrade\.sql|includes_.*|composer\.json|composer\.lock|DEPLOYMENT\.md)$ - [F,L]
+    RewriteRule ^uploads/study_materials/ - [F,L]
     RewriteRule ^uploads/.*\.php$ - [F,L]
 </IfModule>
 

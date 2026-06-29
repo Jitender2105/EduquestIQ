@@ -37,6 +37,43 @@ function frontend_video_extract_youtube_id(string $url): ?string
     return null;
 }
 
+function frontend_video_is_generated_title(string $title): bool
+{
+    return (bool)preg_match('/^YouTube Lecture [A-Za-z0-9_-]{11}$/', trim($title));
+}
+
+function frontend_video_is_generated_description(string $description): bool
+{
+    return str_starts_with(trim($description), 'Embedded lecture from YouTube:');
+}
+
+function frontend_video_display_title(array $row, string $youtubeId): string
+{
+    $title = trim((string)($row['title'] ?? ''));
+    if ($title !== '' && !frontend_video_is_generated_title($title)) {
+        return $title;
+    }
+
+    foreach (['test_title', 'sub_attribute_name', 'attribute_name', 'course_title'] as $key) {
+        $fallback = trim((string)($row[$key] ?? ''));
+        if ($fallback !== '') {
+            return $fallback . ' Video Lecture';
+        }
+    }
+
+    return 'Video Lecture';
+}
+
+function frontend_video_display_description(array $row): string
+{
+    $description = trim((string)($row['description'] ?? ''));
+    if ($description === '' || frontend_video_is_generated_description($description)) {
+        return '';
+    }
+
+    return trim(strip_tags($description));
+}
+
 $select = [
     'vl.id',
     'vl.title',
@@ -108,6 +145,7 @@ $rows = $pdo->query($query)->fetchAll();
 $testSections = [];
 $skillSections = [];
 $generalVideos = [];
+$allVideos = [];
 $activePlayableCount = 0;
 
 foreach ($rows as $row) {
@@ -119,8 +157,8 @@ foreach ($rows as $row) {
 
     $video = [
         'id' => (int)$row['id'],
-        'title' => (string)$row['title'],
-        'description' => (string)($row['description'] ?? ''),
+        'title' => frontend_video_display_title($row, $youtubeId),
+        'description' => frontend_video_display_description($row),
         'duration' => (int)($row['duration'] ?? 0),
         'course_title' => (string)($row['course_title'] ?? ''),
         'test_title' => (string)($row['test_title'] ?? ''),
@@ -128,10 +166,10 @@ foreach ($rows as $row) {
         'sub_attribute_name' => (string)($row['sub_attribute_name'] ?? ''),
         'is_featured' => !empty($row['is_featured']),
         'youtube_id' => $youtubeId,
-        'youtube_url' => 'https://www.youtube.com/watch?v=' . $youtubeId,
         'embed_url' => 'https://www.youtube.com/embed/' . $youtubeId,
         'thumbnail_url' => 'https://img.youtube.com/vi/' . $youtubeId . '/hqdefault.jpg',
     ];
+    $allVideos[] = $video;
 
     if ($video['test_title'] !== '') {
         $testSections[$video['test_title']][] = $video;
@@ -148,6 +186,12 @@ foreach ($rows as $row) {
 
     $generalVideos[] = $video;
 }
+
+$videosPerPage = 9;
+$totalPages = max(1, (int)ceil(count($allVideos) / $videosPerPage));
+$currentPage = max(1, min($totalPages, (int)($_GET['page'] ?? 1)));
+$pageOffset = ($currentPage - 1) * $videosPerPage;
+$visibleVideos = array_slice($allVideos, $pageOffset, $videosPerPage);
 ?>
 
 <style>
@@ -196,7 +240,7 @@ foreach ($rows as $row) {
 }
 .eq-video-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
 }
 .eq-video-card {
@@ -205,25 +249,58 @@ foreach ($rows as $row) {
     overflow: hidden;
     box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
     border: 1px solid rgba(148, 163, 184, 0.15);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    text-align: left;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.eq-video-card:hover,
+.eq-video-card:focus {
+    transform: translateY(-2px);
+    box-shadow: 0 24px 54px rgba(15, 23, 42, 0.12);
+    outline: none;
 }
 .eq-video-card.is-featured {
     border-color: rgba(245, 158, 11, 0.42);
     box-shadow: 0 22px 52px rgba(245, 158, 11, 0.14);
 }
-.eq-video-frame {
+.eq-video-thumb {
     position: relative;
-    padding-top: 56.25%;
     background: #0f172a;
+    aspect-ratio: 16 / 9;
 }
-.eq-video-frame iframe {
-    position: absolute;
-    inset: 0;
+.eq-video-thumb img {
     width: 100%;
     height: 100%;
-    border: 0;
+    object-fit: cover;
+    display: block;
+}
+.eq-video-play {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    width: 54px;
+    height: 54px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.94);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+}
+.eq-video-play::before {
+    content: "";
+    position: absolute;
+    left: 22px;
+    top: 17px;
+    border-left: 16px solid #4f46e5;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
 }
 .eq-video-body {
     padding: 1rem 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
 }
 .eq-video-body h4 {
     font-size: 1rem;
@@ -258,6 +335,32 @@ foreach ($rows as $row) {
     color: #64748b;
     font-size: 0.9rem;
     margin-bottom: 0.75rem;
+}
+.eq-video-pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.eq-video-modal-frame {
+    aspect-ratio: 16 / 9;
+    background: #0f172a;
+}
+.eq-video-modal-frame iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+}
+@media (max-width: 991px) {
+    .eq-video-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+@media (max-width: 575px) {
+    .eq-video-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 
@@ -295,92 +398,108 @@ foreach ($rows as $row) {
         ]);
         ?>
     <?php else: ?>
-        <?php foreach ($testSections as $sectionTitle => $videos): ?>
-            <section class="eq-video-section">
-                <div class="eq-video-section-head">
-                    <h3><?php echo htmlspecialchars($sectionTitle); ?></h3>
-                    <p>Videos mapped directly to this test for pre-attempt prep and post-attempt revision.</p>
-                </div>
-                <div class="eq-video-grid">
-                    <?php foreach ($videos as $video): ?>
-                        <article class="eq-video-card<?php echo $video['is_featured'] ? ' is-featured' : ''; ?>">
-                            <div class="eq-video-frame">
-                                <iframe src="<?php echo htmlspecialchars($video['embed_url']); ?>" title="<?php echo htmlspecialchars($video['title']); ?>" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        <section class="eq-video-section">
+            <div class="eq-video-section-head">
+                <h3>All Video Lectures</h3>
+                <p>Showing <?php echo count($visibleVideos); ?> of <?php echo count($allVideos); ?> videos. Select any video to watch it here.</p>
+            </div>
+            <div class="eq-video-grid">
+                <?php foreach ($visibleVideos as $video): ?>
+                    <article
+                        class="eq-video-card<?php echo $video['is_featured'] ? ' is-featured' : ''; ?> js-video-card"
+                        role="button"
+                        tabindex="0"
+                        data-title="<?php echo htmlspecialchars($video['title']); ?>"
+                        data-description="<?php echo htmlspecialchars($video['description']); ?>"
+                        data-embed="<?php echo htmlspecialchars($video['embed_url']); ?>"
+                    >
+                        <div class="eq-video-thumb">
+                            <img src="<?php echo htmlspecialchars($video['thumbnail_url']); ?>" alt="<?php echo htmlspecialchars($video['title']); ?>">
+                            <span class="eq-video-play" aria-hidden="true"></span>
+                        </div>
+                        <div class="eq-video-body">
+                            <?php if ($video['is_featured']): ?><div class="eq-video-featured-badge">Featured</div><?php endif; ?>
+                            <h4><?php echo htmlspecialchars($video['title']); ?></h4>
+                            <div class="eq-video-meta">
+                                <?php if ($video['test_title'] !== ''): ?><span><?php echo htmlspecialchars($video['test_title']); ?></span><?php endif; ?>
+                                <?php if ($video['sub_attribute_name'] !== ''): ?><span><?php echo htmlspecialchars($video['sub_attribute_name']); ?></span><?php elseif ($video['attribute_name'] !== ''): ?><span><?php echo htmlspecialchars($video['attribute_name']); ?></span><?php endif; ?>
+                                <?php if ($video['course_title'] !== ''): ?><span><?php echo htmlspecialchars($video['course_title']); ?></span><?php endif; ?>
+                                <?php if ($video['duration'] > 0): ?><span><?php echo (int)$video['duration']; ?> min</span><?php endif; ?>
                             </div>
-                            <div class="eq-video-body">
-                                <?php if ($video['is_featured']): ?><div class="eq-video-featured-badge">Featured</div><?php endif; ?>
-                                <h4><?php echo htmlspecialchars($video['title']); ?></h4>
-                                <div class="eq-video-meta">
-                                    <?php if ($video['course_title'] !== ''): ?><span><?php echo htmlspecialchars($video['course_title']); ?></span><?php endif; ?>
-                                    <?php if ($video['duration'] > 0): ?><span><?php echo (int)$video['duration']; ?> min</span><?php endif; ?>
-                                </div>
-                                <?php if ($video['description'] !== ''): ?><p><?php echo htmlspecialchars(text_preview(strip_tags($video['description']), 160, '...')); ?></p><?php endif; ?>
-                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars($video['youtube_url']); ?>" target="_blank" rel="noopener">Open on YouTube</a>
-                            </div>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-            </section>
-        <?php endforeach; ?>
-
-        <?php foreach ($skillSections as $sectionTitle => $videos): ?>
-            <section class="eq-video-section">
-                <div class="eq-video-section-head">
-                    <h3><?php echo htmlspecialchars($sectionTitle); ?></h3>
-                    <p>Concept videos organized by attribute and sub-attribute for focused skill-building.</p>
-                </div>
-                <div class="eq-video-grid">
-                    <?php foreach ($videos as $video): ?>
-                        <article class="eq-video-card<?php echo $video['is_featured'] ? ' is-featured' : ''; ?>">
-                            <div class="eq-video-frame">
-                                <iframe src="<?php echo htmlspecialchars($video['embed_url']); ?>" title="<?php echo htmlspecialchars($video['title']); ?>" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-                            </div>
-                            <div class="eq-video-body">
-                                <?php if ($video['is_featured']): ?><div class="eq-video-featured-badge">Featured</div><?php endif; ?>
-                                <h4><?php echo htmlspecialchars($video['title']); ?></h4>
-                                <div class="eq-video-meta">
-                                    <?php if ($video['course_title'] !== ''): ?><span><?php echo htmlspecialchars($video['course_title']); ?></span><?php endif; ?>
-                                    <?php if ($video['duration'] > 0): ?><span><?php echo (int)$video['duration']; ?> min</span><?php endif; ?>
-                                    <?php if ($video['test_title'] !== ''): ?><span><?php echo htmlspecialchars($video['test_title']); ?></span><?php endif; ?>
-                                </div>
-                                <?php if ($video['description'] !== ''): ?><p><?php echo htmlspecialchars(text_preview(strip_tags($video['description']), 160, '...')); ?></p><?php endif; ?>
-                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars($video['youtube_url']); ?>" target="_blank" rel="noopener">Open on YouTube</a>
-                            </div>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-            </section>
-        <?php endforeach; ?>
-
-        <?php if ($generalVideos): ?>
-            <section class="eq-video-section">
-                <div class="eq-video-section-head">
-                    <h3>General Video Library</h3>
-                    <p>Videos that are active but not mapped to a specific test or skill bucket yet.</p>
-                </div>
-                <div class="eq-video-grid">
-                    <?php foreach ($generalVideos as $video): ?>
-                        <article class="eq-video-card<?php echo $video['is_featured'] ? ' is-featured' : ''; ?>">
-                            <div class="eq-video-frame">
-                                <iframe src="<?php echo htmlspecialchars($video['embed_url']); ?>" title="<?php echo htmlspecialchars($video['title']); ?>" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-                            </div>
-                            <div class="eq-video-body">
-                                <?php if ($video['is_featured']): ?><div class="eq-video-featured-badge">Featured</div><?php endif; ?>
-                                <h4><?php echo htmlspecialchars($video['title']); ?></h4>
-                                <div class="eq-video-meta">
-                                    <?php if ($video['course_title'] !== ''): ?><span><?php echo htmlspecialchars($video['course_title']); ?></span><?php endif; ?>
-                                    <?php if ($video['duration'] > 0): ?><span><?php echo (int)$video['duration']; ?> min</span><?php endif; ?>
-                                </div>
-                                <?php if ($video['description'] !== ''): ?><p><?php echo htmlspecialchars(text_preview(strip_tags($video['description']), 160, '...')); ?></p><?php endif; ?>
-                                <a class="btn btn-outline-primary btn-sm" href="<?php echo htmlspecialchars($video['youtube_url']); ?>" target="_blank" rel="noopener">Open on YouTube</a>
-                            </div>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-            </section>
-        <?php endif; ?>
+                            <?php if ($video['description'] !== ''): ?>
+                                <p><?php echo htmlspecialchars(text_preview($video['description'], 170, '...')); ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+            <?php if ($totalPages > 1): ?>
+                <nav class="eq-video-pagination" aria-label="Video lecture pages">
+                    <?php for ($page = 1; $page <= $totalPages; $page++): ?>
+                        <a class="btn btn-sm <?php echo $page === $currentPage ? 'btn-primary' : 'btn-outline-primary'; ?>" href="<?php echo htmlspecialchars(url_for('video_lectures.php?page=' . $page)); ?>"><?php echo $page; ?></a>
+                    <?php endfor; ?>
+                </nav>
+            <?php endif; ?>
+        </section>
     <?php endif; ?>
 </div>
+
+<div class="modal fade" id="videoLectureModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="videoLectureModalTitle">Video Lecture</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="eq-video-modal-frame mb-3">
+                    <iframe id="videoLectureModalFrame" src="" title="Video lecture player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                </div>
+                <p class="mb-0 text-muted" id="videoLectureModalDescription"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    window.addEventListener('DOMContentLoaded', function () {
+        const modalEl = document.getElementById('videoLectureModal');
+        const frame = document.getElementById('videoLectureModalFrame');
+        const title = document.getElementById('videoLectureModalTitle');
+        const description = document.getElementById('videoLectureModalDescription');
+        if (!modalEl || !frame || !title || !description || typeof bootstrap === 'undefined') {
+            return;
+        }
+
+        const modal = new bootstrap.Modal(modalEl);
+        function openVideo(card) {
+            title.textContent = card.getAttribute('data-title') || 'Video Lecture';
+            const descriptionText = card.getAttribute('data-description') || '';
+            description.textContent = descriptionText;
+            description.hidden = descriptionText === '';
+            frame.src = (card.getAttribute('data-embed') || '') + '?autoplay=1&rel=0';
+            modal.show();
+        }
+
+        document.querySelectorAll('.js-video-card').forEach(function (card) {
+            card.addEventListener('click', function () {
+                openVideo(card);
+            });
+            card.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openVideo(card);
+                }
+            });
+        });
+
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            frame.src = '';
+        });
+    });
+})();
+</script>
 
 <?php
 require_once __DIR__ . '/includes_footer.php';

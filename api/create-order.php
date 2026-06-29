@@ -59,6 +59,11 @@ try {
     $testsHaveActiveColumn = table_has_column($pdo, 'tests', 'is_active');
     $testsHaveGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
     $papersHaveActiveColumn = practice_paper_table_exists($pdo) && table_has_column($pdo, 'practice_papers', 'is_active');
+    ensure_study_material_tables($pdo);
+    $materialsHaveActiveColumn = table_has_column($pdo, 'study_materials', 'is_active');
+    $materialsHaveStatusColumn = table_has_column($pdo, 'study_materials', 'status');
+    $materialsHaveAccessColumn = table_has_column($pdo, 'study_materials', 'access_type');
+    $materialsHaveAmountColumn = table_has_column($pdo, 'study_materials', 'amount_inr');
     $notes = [
         'student_id' => (string)$user['sub'],
         'student_email' => (string)$user['email'],
@@ -74,7 +79,7 @@ try {
 
             $type = (string)($item['type'] ?? '');
             $id = (int)($item['id'] ?? 0);
-            if (!in_array($type, ['test', 'practice_paper'], true) || $id <= 0) {
+            if (!in_array($type, ['test', 'practice_paper', 'study_material'], true) || $id <= 0) {
                 api_json_response(400, ['success' => false, 'error' => 'Invalid purchase item.']);
             }
 
@@ -113,7 +118,7 @@ try {
                     'title' => (string)$test['title'],
                     'amount_paise' => $itemAmountPaise,
                 ];
-            } else {
+            } elseif ($type === 'practice_paper') {
                 if (!practice_paper_table_exists($pdo)) {
                     api_json_response(400, ['success' => false, 'error' => 'Practice papers are not configured yet.']);
                 }
@@ -145,6 +150,38 @@ try {
                     'title' => (string)$paper['name'],
                     'amount_paise' => $itemAmountPaise,
                 ];
+            } else {
+                $stmt = $pdo->prepare(
+                    'SELECT id, title'
+                    . ($materialsHaveAccessColumn ? ', access_type' : ", 'free' AS access_type")
+                    . ($materialsHaveAmountColumn ? ', amount_inr' : ', 0.00 AS amount_inr')
+                    . ($materialsHaveActiveColumn ? ', is_active' : '')
+                    . ($materialsHaveStatusColumn ? ', status' : '')
+                    . ' FROM study_materials WHERE id = ? LIMIT 1'
+                );
+                $stmt->execute([$id]);
+                $material = $stmt->fetch();
+                if (!$material) {
+                    api_json_response(400, ['success' => false, 'error' => 'Invalid study material selected.']);
+                }
+                if (($materialsHaveActiveColumn && empty($material['is_active']))
+                    || ($materialsHaveStatusColumn && (string)($material['status'] ?? '') !== 'published')) {
+                    api_json_response(400, ['success' => false, 'error' => 'This study material is not active.']);
+                }
+                if (study_material_purchase_is_paid($pdo, $id, $studentId)) {
+                    continue;
+                }
+
+                $itemAmountPaise = ((string)($material['access_type'] ?? 'free') === 'paid') ? amount_in_paise(max(0.0, (float)($material['amount_inr'] ?? 0))) : 0;
+                if ($itemAmountPaise < 100) {
+                    continue;
+                }
+                $purchaseItems[$key] = [
+                    'type' => 'study_material',
+                    'id' => $id,
+                    'title' => (string)$material['title'],
+                    'amount_paise' => $itemAmountPaise,
+                ];
             }
         }
 
@@ -152,7 +189,7 @@ try {
             api_json_response(200, [
                 'success' => true,
                 'already_paid' => true,
-                'redirect_url' => url_for('tests.php?purchase=ready'),
+                'redirect_url' => url_for('study-material?purchase=ready'),
             ]);
         }
 
@@ -216,8 +253,10 @@ try {
             $itemNotes['item_id'] = (string)$item['id'];
             if ($item['type'] === 'test') {
                 test_purchase_upsert_pending($pdo, (int)$item['id'], $studentId, inr_from_paise((int)$item['amount_paise']), (string)$order['id'], $itemNotes);
-            } else {
+            } elseif ($item['type'] === 'practice_paper') {
                 practice_paper_purchase_upsert_pending($pdo, (int)$item['id'], $studentId, inr_from_paise((int)$item['amount_paise']), (string)$order['id'], $itemNotes);
+            } else {
+                study_material_purchase_upsert_pending($pdo, (int)$item['id'], $studentId, inr_from_paise((int)$item['amount_paise']), (string)$order['id'], $itemNotes);
             }
         }
     }

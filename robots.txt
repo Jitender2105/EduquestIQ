@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /backend/
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /login
+Disallow: /logout
+Disallow: /manage_lms
+Disallow: /student_report
+Disallow: /test_attempt
+Disallow: /test_submit
+Disallow: /test_purchase
+Disallow: /bulk_purchase_checkout
+
+Sitemap: https://eduquestiq.com/sitemap.xml

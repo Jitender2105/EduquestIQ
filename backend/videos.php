@@ -53,10 +53,22 @@ function backend_video_extract_youtube_id(string $url): ?string
     return null;
 }
 
+function backend_video_is_generated_title(string $title): bool
+{
+    return (bool)preg_match('/^YouTube Lecture [A-Za-z0-9_-]{11}$/', trim($title));
+}
+
+function backend_video_is_generated_description(string $description): bool
+{
+    return str_starts_with(trim($description), 'Embedded lecture from YouTube:');
+}
+
 function backend_video_default_form(): array
 {
     return [
         'edit_id' => '',
+        'title' => '',
+        'description' => '',
         'test_id' => '',
         'attribute_id' => '',
         'sub_attribute_id' => '',
@@ -70,6 +82,8 @@ function backend_video_form_from_source(array $source): array
 {
     $form = backend_video_default_form();
     $form['edit_id'] = trim((string)($source['edit_id'] ?? ''));
+    $form['title'] = trim((string)($source['title'] ?? ''));
+    $form['description'] = trim((string)($source['description'] ?? ''));
     $form['test_id'] = trim((string)($source['test_id'] ?? ''));
     $form['attribute_id'] = trim((string)($source['attribute_id'] ?? ''));
     $form['sub_attribute_id'] = trim((string)($source['sub_attribute_id'] ?? ''));
@@ -94,7 +108,10 @@ $form = backend_video_default_form();
 if (isset($_GET['edit'])) {
     $editId = max(0, (int)$_GET['edit']);
     if ($editId > 0) {
-        $selectParts = ['id', 'video_url'];
+        $selectParts = ['id', 'title', 'video_url'];
+        if ($hasVideoDescriptionColumn) {
+            $selectParts[] = 'description';
+        }
         if ($hasVideoTestColumn) {
             $selectParts[] = 'test_id';
         }
@@ -114,8 +131,12 @@ if (isset($_GET['edit'])) {
         $stmt->execute([$editId]);
         $existing = $stmt->fetch();
         if ($existing) {
+            $existingTitle = (string)($existing['title'] ?? '');
+            $existingDescription = (string)($existing['description'] ?? '');
             $form = [
                 'edit_id' => (string)$existing['id'],
+                'title' => backend_video_is_generated_title($existingTitle) ? '' : $existingTitle,
+                'description' => backend_video_is_generated_description($existingDescription) ? '' : $existingDescription,
                 'test_id' => (string)($existing['test_id'] ?? ''),
                 'attribute_id' => (string)($existing['attribute_id'] ?? ''),
                 'sub_attribute_id' => (string)($existing['sub_attribute_id'] ?? ''),
@@ -141,6 +162,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $subAttributeId = max(0, (int)$form['sub_attribute_id']);
             $videoUrl = $form['video_url'];
             $youtubeId = backend_video_extract_youtube_id($videoUrl);
+            $title = trim($form['title']);
+            $description = trim($form['description']);
             $isActive = $form['is_active'] === '0' ? 0 : 1;
             $isFeatured = $form['is_featured'] === '1' ? 1 : 0;
 
@@ -152,8 +175,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             }
 
             if ($errors === []) {
-                $title = 'YouTube Lecture ' . $youtubeId;
-                $description = $hasVideoDescriptionColumn ? ('Embedded lecture from YouTube: ' . $videoUrl) : null;
+                if ($title === '') {
+                    $title = 'Video Lecture';
+                }
+                $description = $hasVideoDescriptionColumn && $description !== '' ? $description : null;
                 $sequenceOrder = 1;
                 $duration = 10;
 
@@ -328,6 +353,14 @@ require_once dirname(__DIR__) . '/includes_header.php';
             <?php echo csrf_field(); ?>
             <input type="hidden" name="edit_id" value="<?php echo htmlspecialchars($form['edit_id']); ?>">
             <h5 class="mb-3"><?php echo $form['edit_id'] !== '' ? 'Edit Video' : 'Add Video'; ?></h5>
+
+            <label class="form-label">Video Title</label>
+            <input class="form-control mb-3" name="title" placeholder="Enter video title" value="<?php echo htmlspecialchars($form['title']); ?>">
+
+            <?php if ($hasVideoDescriptionColumn): ?>
+                <label class="form-label">Video Description</label>
+                <textarea class="form-control mb-3" name="description" rows="4" placeholder="Description shown on the video card and modal"><?php echo htmlspecialchars($form['description']); ?></textarea>
+            <?php endif; ?>
 
             <label class="form-label">Select Test</label>
             <select class="form-select mb-3" name="test_id">

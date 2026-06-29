@@ -322,13 +322,46 @@ CREATE TABLE video_lectures (
 
 CREATE TABLE study_materials (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  course_id INT NOT NULL,
-  title VARCHAR(150),
-  file_path VARCHAR(255),
-  material_type ENUM('pdf','doc','ppt','link'),
+  course_id INT NULL,
+  title VARCHAR(150) NOT NULL,
+  description TEXT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  material_type ENUM('pdf','doc','ppt','link') NOT NULL DEFAULT 'pdf',
+  access_type ENUM('free','paid') NOT NULL DEFAULT 'free',
+  amount_inr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  grade VARCHAR(40) NULL,
+  attribute_id INT NULL,
+  sub_attribute_id INT NULL,
+  chapter VARCHAR(180) NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
+  status ENUM('draft','published','archived') NOT NULL DEFAULT 'published',
   uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_study_material_grade (grade),
+  KEY idx_study_material_attribute (attribute_id),
+  KEY idx_study_material_sub_attribute (sub_attribute_id),
   CONSTRAINT fk_smat_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE study_material_purchases (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  study_material_id INT NOT NULL,
+  student_id INT NOT NULL,
+  gateway ENUM('razorpay') NOT NULL DEFAULT 'razorpay',
+  gateway_order_id VARCHAR(120) NOT NULL,
+  gateway_payment_id VARCHAR(120) NULL,
+  gateway_signature VARCHAR(255) NULL,
+  amount_inr DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+  payment_status ENUM('pending','paid','failed','cancelled') NOT NULL DEFAULT 'pending',
+  notes_json JSON NULL,
+  paid_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_study_material_student_purchase (study_material_id, student_id),
+  KEY idx_study_material_gateway_order (gateway_order_id),
+  CONSTRAINT fk_smp_material FOREIGN KEY (study_material_id) REFERENCES study_materials(id) ON DELETE CASCADE,
+  CONSTRAINT fk_smp_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 5️⃣ PROGRESS TRACKING SYSTEM

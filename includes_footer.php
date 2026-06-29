@@ -21,7 +21,7 @@
                 <a href="<?php echo htmlspecialchars(url_for('dashboard.php')); ?>">Dashboard</a>
                 <a href="<?php echo htmlspecialchars(url_for('courses.php')); ?>">Courses</a>
                 <a href="<?php echo htmlspecialchars(url_for('video_lectures.php')); ?>">Videos</a>
-                <a href="<?php echo htmlspecialchars(url_for('materials.php')); ?>">Resources</a>
+                <a href="<?php echo htmlspecialchars(url_for('study-material')); ?>">Resources</a>
                 <a href="<?php echo htmlspecialchars(url_for('tests.php')); ?>">Leaderboard</a>
             </div>
             <div class="col-6 col-lg-2">

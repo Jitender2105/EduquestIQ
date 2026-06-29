@@ -10,6 +10,29 @@ $pdo = get_pdo();
 $testHasActiveColumn = table_has_column($pdo, 'tests', 'is_active');
 $testHasGradeColumn = table_has_column($pdo, 'tests', 'target_grade');
 $studentGrade = '';
+$seoAlias = (string)($_GET['seo_alias'] ?? '');
+$seoLandingCopy = [
+    'stem-test' => [
+        'heading' => 'STEM Test Preparation for School Students',
+        'copy' => 'Build mathematics, science, EVS, logical reasoning, and analytical problem-solving readiness through structured STEM tests and practice papers.',
+    ],
+    'olympiad-exam' => [
+        'heading' => 'Olympiad Exam Preparation and Practice Tests',
+        'copy' => 'Prepare for Olympiad-style questions with grade-wise STEM practice, reasoning drills, timed assessments, and SIRA readiness reports.',
+    ],
+    'competitive-exam-grade-2' => [
+        'heading' => 'Competitive Exam Preparation for Grade 2',
+        'copy' => 'Help Grade 2 students practice STEM, language, reasoning, and general awareness skills with age-appropriate test readiness activities.',
+    ],
+    'competitive-exam-grade-3' => [
+        'heading' => 'Competitive Exam Preparation for Grade 3',
+        'copy' => 'Support Grade 3 students with Olympiad-style STEM tests, reasoning practice, downloadable papers, and performance insights.',
+    ],
+    'competitive-exam-grade-4' => [
+        'heading' => 'Competitive Exam Preparation for Grade 4',
+        'copy' => 'Strengthen Grade 4 exam readiness with STEM tests, logical ability, practice papers, and skill-wise learning reports.',
+    ],
+];
 
 function tests_catalog_kolkata_label(?DateTimeImmutable $value): string
 {
@@ -412,8 +435,34 @@ details[open] .eq-collapsible-icon {
 </style>
 
 <div class="eq-page-head">
-    <h2>Top Eduquest Ace Exam that will help you build the right future for your Child</h2>
+    <h1><?php echo htmlspecialchars($seoLandingCopy[$seoAlias]['heading'] ?? 'STEM Tests, Olympiad Practice and Competitive Exams'); ?></h1>
+    <p class="subtitle">
+        <?php echo htmlspecialchars($seoLandingCopy[$seoAlias]['copy'] ?? 'Explore EduquestIQ assessments for STEM tests, Olympiad preparation, grade-wise competitive exams, practice papers, and SIRA skill reports.'); ?>
+    </p>
   </div>
+
+<section class="eq-seo-copy mb-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="eq-feature-card">
+                <h2 class="h5">STEM Test Readiness</h2>
+                <p class="mb-0">Practice mathematics, science, EVS, reasoning, and analytical problem-solving for school-level STEM exams.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="eq-feature-card">
+                <h2 class="h5">Olympiad Practice</h2>
+                <p class="mb-0">Prepare for Olympiad-style questions with timed tests, practice papers, and skill-based review reports.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="eq-feature-card">
+                <h2 class="h5">Grade-Wise Competitive Exams</h2>
+                <p class="mb-0">Support Grade 2, Grade 3, Grade 4 and higher students with structured competitive exam preparation.</p>
+            </div>
+        </div>
+    </div>
+</section>
 
 <?php if (!empty($_GET['purchase'])): ?>
     <div class="alert alert-success">Purchase status updated. You can start purchased tests or download purchased practice papers below.</div>

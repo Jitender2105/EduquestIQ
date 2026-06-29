@@ -5,14 +5,9 @@ declare(strict_types=1);
 <style>
     .eq-quill-wrap {
         border: 1px solid rgba(47, 59, 120, 0.14);
-        border-radius: 16px;
+        border-radius: 12px;
         overflow: hidden;
         background: #fff;
-    }
-    .eq-quill-toolbar {
-        border: 0;
-        border-bottom: 1px solid rgba(47, 59, 120, 0.10);
-        background: #f8faff;
     }
     .eq-quill-editor {
         min-height: 180px;
@@ -28,5 +23,5 @@ declare(strict_types=1);
         font-style: normal;
     }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js" defer></script>
-<script src="<?php echo htmlspecialchars(url_for('assets/js/backend-richtext.js')); ?>" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script src="<?php echo htmlspecialchars(url_for('assets/js/backend-richtext.js?v=20260601-quill')); ?>"></script>

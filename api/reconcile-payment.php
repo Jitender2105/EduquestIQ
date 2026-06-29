@@ -35,18 +35,21 @@ if (!is_array($input)) {
 }
 
 $testId = isset($input['test_id']) ? (int)$input['test_id'] : 0;
+$materialId = isset($input['study_material_id']) ? (int)$input['study_material_id'] : 0;
 $orderId = trim((string)($input['razorpay_order_id'] ?? ''));
 $paymentId = trim((string)($input['razorpay_payment_id'] ?? ''));
 $gatewayError = is_array($input['error'] ?? null) ? $input['error'] : [];
 
-if ($testId <= 0 || $orderId === '' || $paymentId === '') {
+if (($testId <= 0 && $materialId <= 0) || $orderId === '' || $paymentId === '') {
     api_reconcile_json_response(400, ['success' => false, 'error' => 'Missing payment reconciliation fields.']);
 }
 
 try {
     $pdo = get_pdo();
     $studentId = (int)$user['sub'];
-    $purchase = test_purchase_row($pdo, $testId, $studentId);
+    $purchase = $testId > 0
+        ? test_purchase_row($pdo, $testId, $studentId)
+        : study_material_purchase_row($pdo, $materialId, $studentId);
 
     if (!$purchase || (string)($purchase['gateway_order_id'] ?? '') !== $orderId) {
         api_reconcile_json_response(400, ['success' => false, 'error' => 'Payment order mismatch.']);
@@ -56,7 +59,7 @@ try {
         api_reconcile_json_response(200, [
             'success' => true,
             'recovered' => false,
-            'redirect_url' => url_for('tests.php?purchase=ready'),
+            'redirect_url' => $testId > 0 ? url_for('tests.php?purchase=ready') : url_for('study-material?purchase=ready'),
         ]);
     }
 
@@ -73,28 +76,45 @@ try {
 
     $paymentStatus = (string)($payment['status'] ?? '');
     if ($paymentStatus === 'captured') {
-        test_purchase_mark_paid(
-            $pdo,
-            $testId,
-            $studentId,
-            $orderId,
-            $paymentId,
-            'reconciled-captured-payment',
-            (float)($purchase['amount_inr'] ?? inr_from_paise($actualAmount))
-        );
+        if ($testId > 0) {
+            test_purchase_mark_paid(
+                $pdo,
+                $testId,
+                $studentId,
+                $orderId,
+                $paymentId,
+                'reconciled-captured-payment',
+                (float)($purchase['amount_inr'] ?? inr_from_paise($actualAmount))
+            );
+        } else {
+            study_material_purchase_mark_paid(
+                $pdo,
+                $materialId,
+                $studentId,
+                $orderId,
+                $paymentId,
+                'reconciled-captured-payment',
+                (float)($purchase['amount_inr'] ?? inr_from_paise($actualAmount))
+            );
+        }
 
         api_reconcile_json_response(200, [
             'success' => true,
             'recovered' => true,
-            'redirect_url' => url_for('tests.php?purchase=success'),
+            'redirect_url' => $testId > 0 ? url_for('tests.php?purchase=success') : url_for('study-material?purchase=success'),
         ]);
     }
 
-    test_purchase_mark_failed($pdo, $testId, $studentId, $orderId, $paymentId, [
+    $details = [
         'gateway_error' => $gatewayError,
         'razorpay_status' => $paymentStatus,
         'razorpay_amount' => $actualAmount,
-    ]);
+    ];
+    if ($testId > 0) {
+        test_purchase_mark_failed($pdo, $testId, $studentId, $orderId, $paymentId, $details);
+    } else {
+        study_material_purchase_mark_failed($pdo, $materialId, $studentId, $orderId, $paymentId, $details);
+    }
 
     api_reconcile_json_response(400, [
         'success' => false,
